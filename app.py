@@ -23,7 +23,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production-2
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'leeanna'),
+    'password': os.getenv('DB_PASSWORD', 'xxxx'),
     'database': os.getenv('DB_NAME', 'project')
 }
 
