@@ -1,0 +1,456 @@
+:root {
+    --color-primary: #9E97B0;   /* 紫藤灰 - 导航/页脚 */
+    --color-bg: #F7F6F9;        /* 雾白 - 背景 */
+    --color-accent: #E0C082;    /* 枯金 - 强调/按钮 */
+    --color-text: #4A4063;      /* 黛紫 - 正文 */
+    --color-white: #FFFFFF;     /* 纯白 - 卡片背景 */
+    --color-lavender: #DBD8F0;  /* 浅紫 - 辅助色 */
+    --border-color: #ddd;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "Noto Serif SC", "Songti SC", serif; /* 衬线体，符合雅致基调 */
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+/* 导航栏 */
+header {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.search-bar {
+    flex: 1;
+    max-width: 500px;
+    margin: 0 20px;
+}
+
+.search-bar form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.search-bar input {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    border: none;
+    flex: 1;
+    outline: none;
+    font-size: 0.95rem;
+}
+
+.search-bar button {
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    border: none;
+    background-color: var(--color-white);
+    color: var(--color-primary);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.search-bar button:hover {
+    background-color: var(--color-accent);
+    color: var(--color-white);
+}
+
+.nav-links a {
+    color: var(--color-white);
+    text-decoration: none;
+    margin-left: 20px;
+    font-size: 0.9rem;
+}
+
+/* 容器 */
+.container {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+    min-height: 80vh;
+}
+
+/* 目录页网格 */
+.catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 30px;
+}
+
+.card {
+    background-color: var(--color-white);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-image {
+    height: 200px;
+    width: 100%;
+    object-fit: cover;
+    background-color: #eee;
+}
+
+.card-info {
+    padding: 15px;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--color-text);
+}
+
+.card-date {
+    font-size: 0.9rem;
+    color: #888;
+}
+
+/* 详情页布局 (基于线框图) */
+.detail-container {
+    display: flex;
+    gap: 40px;
+    background-color: var(--color-white);
+    padding: 40px;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
+
+/* 左侧图片区域 */
+.image-section {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.image-viewer {
+    width: 100%;
+    height: 500px;
+    border: 2px dashed #ccc; /* 线框图中的虚线框 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+    background-color: #fafafa;
+}
+
+.artifact-img {
+    max-width: 95%;
+    max-height: 95%;
+    transition: transform 0.3s ease;
+    cursor: grab;
+}
+
+.image-controls {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    align-self: flex-end; /* 靠右对齐，如线框图所示 */
+}
+
+.control-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-text);
+    background: transparent;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 4px;
+}
+
+.control-btn:hover {
+    background-color: #eee;
+}
+
+/* 右侧信息区域 */
+.info-section {
+    flex: 1;
+    padding-left: 20px;
+}
+
+.artifact-title {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+    font-weight: normal;
+}
+
+.divider {
+    height: 2px;
+    background-color: var(--color-text);
+    width: 100%;
+    margin-bottom: 25px;
+}
+
+.meta-table {
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+.meta-row {
+    display: flex;
+    margin-bottom: 12px;
+}
+
+.meta-label {
+    width: 80px;
+    font-weight: bold;
+    color: #666;
+    flex-shrink: 0;
+}
+
+.meta-value {
+    color: var(--color-text);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.btn {
+    flex: 1;
+    padding: 12px 0;
+    text-align: center;
+    border: 1px solid var(--color-text);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: #000; /* 线框图中的黑色按钮 */
+    color: #fff;
+    border: none;
+}
+
+.btn-outline {
+    background-color: #fff;
+    color: #000;
+}
+
+/* 配色方案中的枯金用于Hover或强调 */
+.btn:hover {
+    background-color: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+}
+
+.description {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: #555;
+}
+
+.desc-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    display: block;
+}
+
+/* 缩略图样式 */
+.thumbnail-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.thumbnail-item {
+    width: 50px;
+    height: 50px;
+    overflow: hidden;
+    border: 2px solid #ddd;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    background-color: #f5f5f5;
+}
+
+.thumbnail-item:hover {
+    border-color: var(--color-primary);
+    transform: scale(1.1);
+}
+
+.thumbnail-item.thumbnail-active {
+    border-color: #333;
+}
+
+.thumbnail-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.back-link {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+/* 搜索结果页面样式 */
+.no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+}
+
+.no-results p {
+    margin-bottom: 10px;
+}
+
+/* 搜索结果统计信息 */
+.search-info {
+    color: #666;
+    margin-top: 10px;
+    font-size: 0.95rem;
+}
+
+.search-info strong {
+    color: var(--color-text);
+    font-weight: bold;
+}
+
+/* 文化浏览页面样式 */
+.culture-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 30px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.culture-card {
+    background-color: var(--color-white);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.culture-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.culture-image-wrapper {
+    width: 100%;
+    height: 220px;
+    border: 2px dashed var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fafafa;
+    overflow: hidden;
+}
+
+.culture-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.culture-image-placeholder {
+    color: #999;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.culture-divider {
+    height: 2px;
+    border-top: 2px dashed var(--border-color);
+    margin: 0;
+    background: none;
+}
+
+.culture-info {
+    padding: 20px;
+}
+
+.culture-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.culture-name {
+    font-size: 1.4rem;
+    font-weight: normal;
+    margin: 0;
+    color: var(--color-text);
+    flex: 1;
+}
+
+.culture-count {
+    background-color: var(--color-lavender);
+    color: var(--color-text);
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    white-space: nowrap;
+    margin-left: 15px;
+}
+
+.culture-description {
+    font-size: 0.95rem;
+    color: #666;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* 页脚 */
+footer {
+    background-color: var(--color-primary);
+    color: white;
+    text-align: center;
+    padding: 2rem;
+    margin-top: auto;
+}

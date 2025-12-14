@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ geography.geography_name }} - 地理目录{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <a class="back-link" href="{{ url_for('browse_geographies') }}">&larr; 返回空间浏览</a>
+</div>
+
+<div style="text-align: center; margin-bottom: 30px;">
+    <h2 style="font-size: 2rem; margin-bottom: 10px; font-weight: normal;">{{ geography.geography_name }}</h2>
+    <p style="color: #666; font-size: 0.95rem;">
+        共 <strong>{{ artifacts|length }}</strong> 件文物
+    </p>
+</div>
+<hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">
+
+{% if artifacts %}
+<div class="catalog-grid">
+    {% for item in artifacts %}
+    <a href="{{ url_for('detail', artifact_id=item.artifact_id) }}" class="card">
+        <div class="card-image-wrapper">
+            {% if item.local_path %}
+                <img src="{{ url_for('static', filename=item.local_path) }}" alt="{{ item.title }}" class="card-image">
+            {% else %}
+                <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:#999;">暂无图片</div>
+            {% endif %}
+        </div>
+        <div class="card-info">
+            <div class="card-title">{{ item.title or '未命名文物' }}</div>
+            <div class="card-date">{{ item.date_text or '年代未知' }}</div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="no-results" style="text-align: center; padding: 60px 20px; color: #999;">
+    <p style="font-size: 1.2rem; margin-bottom: 10px;">该分类下暂无文物</p>
+    <div style="margin-top: 30px;">
+        <a href="{{ url_for('browse_geographies') }}" class="btn" style="display: inline-block; padding: 12px 30px; text-decoration: none; color: var(--color-text); border: 1px solid var(--color-text);">返回空间浏览</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,605 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ album.name }} - 我的图集{% endblock %}
+
+{% block content %}
+<style>
+    /* 图集详情页样式 */
+    .album-detail-header {
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 30px;
+        margin-bottom: 30px;
+        display: flex;
+        gap: 30px;
+        align-items: center;
+    }
+    
+    /* 图集封面（模糊效果） */
+    .album-cover-container {
+        width: 200px;
+        height: 200px;
+        border-radius: 8px;
+        overflow: hidden;
+        flex-shrink: 0;
+        background-color: var(--color-lavender);
+        position: relative;
+    }
+    
+    .album-cover-blur {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: blur(8px);
+        transform: scale(1.2);
+    }
+    
+    .album-cover-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(158, 151, 176, 0.3) 0%, rgba(74, 69, 87, 0.2) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-white);
+        font-size: 1rem;
+        font-weight: bold;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+    
+    .album-header-info {
+        flex: 1;
+    }
+    
+    .album-header-title {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: var(--color-text);
+    }
+    
+    .album-header-meta {
+        color: #666;
+        font-size: 1rem;
+        margin-bottom: 15px;
+    }
+    
+    .album-header-actions {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .album-action-btn {
+        padding: 10px 20px;
+        border: 1px solid var(--color-text);
+        background-color: var(--color-white);
+        color: var(--color-text);
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        text-decoration: none;
+        transition: all 0.2s;
+        display: inline-block;
+    }
+    
+    .album-action-btn:hover {
+        background-color: var(--color-accent);
+        color: var(--color-white);
+        border-color: var(--color-accent);
+    }
+    
+    /* 文物卡片网格（与 culture_detail.html 一致） */
+    .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 30px;
+    }
+
+    .card {
+        background-color: var(--color-white);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+    }
+
+    .card-image-wrapper {
+        height: 200px;
+        width: 100%;
+        background-color: #eee;
+        overflow: hidden;
+    }
+
+    .card-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .card-info {
+        padding: 15px;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: var(--color-text);
+    }
+
+    .card-date {
+        font-size: 0.9rem;
+        color: #888;
+    }
+    
+    /* 文物卡片删除按钮 */
+    .card {
+        position: relative;
+    }
+    
+    .card-remove-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: 10;
+        font-size: 1rem;
+    }
+    
+    .card:hover .card-remove-btn {
+        opacity: 1;
+    }
+    
+    .card-remove-btn:hover {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-color: #f5c6cb;
+        transform: scale(1.1);
+    }
+    
+    /* 空状态样式 */
+    .empty-album {
+        text-align: center;
+        padding: 60px 20px;
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+    
+    .empty-album-icon {
+        font-size: 4rem;
+        color: #ccc;
+        margin-bottom: 20px;
+    }
+    
+    .empty-album-text {
+        font-size: 1.1rem;
+        color: #666;
+        margin-bottom: 30px;
+    }
+    
+    /* 管理模态框样式 */
+    .manage-modal {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+    
+    .manage-modal-content {
+        background-color: var(--color-white);
+        margin: 15% auto;
+        padding: 30px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        position: relative;
+    }
+    
+    .manage-modal-header {
+        font-size: 1.3rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: var(--color-text);
+    }
+    
+    .manage-modal-body {
+        margin-bottom: 25px;
+    }
+    
+    .manage-modal-body p {
+        margin: 10px 0;
+        color: var(--color-text);
+    }
+    
+    .manage-modal-input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 1rem;
+        box-sizing: border-box;
+    }
+    
+    .manage-modal-input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+    }
+    
+    .manage-modal-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+    
+    .manage-modal-btn {
+        padding: 10px 20px;
+        border: 1px solid var(--color-text);
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s;
+    }
+    
+    .manage-modal-btn-primary {
+        background-color: var(--color-text);
+        color: var(--color-white);
+        border-color: var(--color-text);
+    }
+    
+    .manage-modal-btn-secondary {
+        background-color: var(--color-white);
+        color: var(--color-text);
+    }
+    
+    .manage-modal-btn:hover {
+        background-color: var(--color-accent);
+        color: var(--color-white);
+        border-color: var(--color-accent);
+    }
+</style>
+
+<div style="margin-bottom: 20px;">
+    <a class="back-link" href="{{ url_for('user_center') }}">&larr; 返回用户中心</a>
+</div>
+
+<!-- 图集头部信息 -->
+<div class="album-detail-header">
+    <div class="album-cover-container">
+        {% if artifacts and artifacts[0].local_path %}
+            <img src="{{ url_for('static', filename=artifacts[0].local_path) }}" 
+                 alt="{{ album.name }}" 
+                 class="album-cover-blur">
+            <div class="album-cover-overlay">
+                {{ album.item_count }} 件文物
+            </div>
+        {% else %}
+            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.9rem;">
+                [暂无封面]
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="album-header-info">
+        <h1 class="album-header-title">{{ album.name }}</h1>
+        <div class="album-header-meta">
+            {{ artifacts|length }} 个内容 • 
+            {% if album.is_public %}公开{% else %}私密{% endif %}
+            {% if album.created_at %}
+                • 创建于 {{ album.created_at.strftime('%Y-%m-%d') if album.created_at is not string else album.created_at }}
+            {% endif %}
+        </div>
+        
+        <div class="album-header-actions">
+            <button class="album-action-btn" onclick="window.location.href='{{ url_for('random_browse') }}'">
+                继续添加文物
+            </button>
+            <button class="album-action-btn">
+                导出数据
+            </button>
+            <button class="album-action-btn">
+                分享图集
+            </button>
+            {% if album.album_id != 'guest_default' and session.get('user_id') %}
+            <button class="album-action-btn" onclick="openRenameModal({{ album.album_id }}, {{ album.name|tojson }})" style="background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb;">
+                重命名图集
+            </button>
+            {% if album.name != '默认收藏夹' %}
+            <button class="album-action-btn" onclick="openDeleteModal({{ album.album_id }}, {{ album.name|tojson }})" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">
+                删除图集
+            </button>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 文物列表 -->
+{% if artifacts %}
+<div style="margin-bottom: 20px;">
+    <h2 style="font-size: 1.5rem; color: var(--color-text);">图集内容</h2>
+</div>
+
+<div class="catalog-grid">
+    {% for item in artifacts %}
+    <div class="card" style="position: relative;">
+        <a href="{{ url_for('detail', artifact_id=item.artifact_id) }}" style="text-decoration: none; color: inherit; display: block;">
+            <div class="card-image-wrapper">
+                {% if item.local_path %}
+                    <img src="{{ url_for('static', filename=item.local_path) }}" alt="{{ item.title }}" class="card-image">
+                {% else %}
+                    <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:#999;">暂无图片</div>
+                {% endif %}
+            </div>
+            <div class="card-info">
+                <div class="card-title">{{ item.title or '未命名文物' }}</div>
+                <div class="card-date">{{ item.date_text or '年代未知' }}</div>
+            </div>
+        </a>
+        {% if album.album_id != 'guest_default' and session.get('user_id') %}
+        <button class="card-remove-btn" onclick="event.stopPropagation(); openRemoveArtifactModal({{ album.album_id }}, {{ item.artifact_id }}, {{ (item.title or '未命名文物')|tojson }}); return false;" title="从图集中移除">×</button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<!-- 空状态 -->
+<div class="empty-album">
+    <div class="empty-album-icon">📦</div>
+    <div class="empty-album-text">图集中还没有内容</div>
+    <button class="album-action-btn" onclick="window.location.href='{{ url_for('random_browse') }}'">
+        开始添加文物
+    </button>
+</div>
+{% endif %}
+
+<!-- 删除图集确认模态框 -->
+<div id="deleteAlbumModal" class="manage-modal">
+    <div class="manage-modal-content">
+        <div class="manage-modal-header">删除图集</div>
+        <div class="manage-modal-body">
+            <p>确定要删除图集 "<span id="delete-album-name-detail"></span>" 吗？</p>
+            <p style="color: #999; font-size: 0.9rem; margin-top: 10px;">此操作不可恢复，图集中的所有文物将被移除。</p>
+        </div>
+        <div class="manage-modal-buttons">
+            <button class="manage-modal-btn manage-modal-btn-secondary" onclick="closeManageModal('deleteAlbumModal')">取消</button>
+            <button class="manage-modal-btn manage-modal-btn-primary" id="confirm-delete-btn-detail">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 重命名图集模态框 -->
+<div id="renameAlbumModal" class="manage-modal">
+    <div class="manage-modal-content">
+        <div class="manage-modal-header">重命名图集</div>
+        <div class="manage-modal-body">
+            <label style="display: block; margin-bottom: 8px; font-weight: bold;">新名称：</label>
+            <input type="text" id="rename-album-input-detail" class="manage-modal-input" placeholder="输入图集名称">
+        </div>
+        <div class="manage-modal-buttons">
+            <button class="manage-modal-btn manage-modal-btn-secondary" onclick="closeManageModal('renameAlbumModal')">取消</button>
+            <button class="manage-modal-btn manage-modal-btn-primary" id="confirm-rename-btn-detail">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除文物确认模态框 -->
+<div id="removeArtifactModal" class="manage-modal">
+    <div class="manage-modal-content">
+        <div class="manage-modal-header">移除文物</div>
+        <div class="manage-modal-body">
+            <p>确定要从图集中移除 "<span id="remove-artifact-name"></span>" 吗？</p>
+        </div>
+        <div class="manage-modal-buttons">
+            <button class="manage-modal-btn manage-modal-btn-secondary" onclick="closeManageModal('removeArtifactModal')">取消</button>
+            <button class="manage-modal-btn manage-modal-btn-primary" id="confirm-remove-artifact-btn">确认移除</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    {% if album.album_id != 'guest_default' %}
+    const albumId = {{ album.album_id }};
+    {% else %}
+    const albumId = null;
+    {% endif %}
+    
+    // 打开删除图集模态框
+    function openDeleteModal(albumId, albumName) {
+        document.getElementById('delete-album-name-detail').textContent = albumName;
+        document.getElementById('deleteAlbumModal').style.display = 'block';
+        
+        // 设置确认按钮的点击事件
+        const confirmBtn = document.getElementById('confirm-delete-btn-detail');
+        confirmBtn.onclick = function() {
+            deleteAlbum(albumId, albumName);
+        };
+    }
+    
+    // 打开重命名图集模态框
+    function openRenameModal(albumId, currentName) {
+        document.getElementById('rename-album-input-detail').value = currentName;
+        document.getElementById('renameAlbumModal').style.display = 'block';
+        
+        // 设置确认按钮的点击事件
+        const confirmBtn = document.getElementById('confirm-rename-btn-detail');
+        confirmBtn.onclick = function() {
+            const newName = document.getElementById('rename-album-input-detail').value.trim();
+            if (!newName || newName === '') {
+                alert('图集名称不能为空');
+                return;
+            }
+            if (newName === currentName) {
+                closeManageModal('renameAlbumModal');
+                return;
+            }
+            renameAlbum(albumId, newName);
+        };
+        
+        // 聚焦输入框
+        setTimeout(() => {
+            document.getElementById('rename-album-input-detail').focus();
+            document.getElementById('rename-album-input-detail').select();
+        }, 100);
+    }
+    
+    // 打开删除文物模态框
+    function openRemoveArtifactModal(albumId, artifactId, artifactTitle) {
+        document.getElementById('remove-artifact-name').textContent = artifactTitle;
+        document.getElementById('removeArtifactModal').style.display = 'block';
+        
+        // 设置确认按钮的点击事件
+        const confirmBtn = document.getElementById('confirm-remove-artifact-btn');
+        confirmBtn.onclick = function() {
+            removeArtifactFromAlbum(albumId, artifactId, artifactTitle);
+        };
+    }
+    
+    // 关闭管理模态框
+    function closeManageModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+    
+    // 删除图集
+    function deleteAlbum(albumId, albumName) {
+        fetch('/api/album/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                album_id: albumId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            closeManageModal('deleteAlbumModal');
+            if (data.success) {
+                alert('图集已删除');
+                window.location.href = "{{ url_for('user_center') }}";
+            } else {
+                alert(data.message || '删除失败');
+            }
+        })
+        .catch(error => {
+            console.error('删除图集失败:', error);
+            closeManageModal('deleteAlbumModal');
+            alert('删除失败，请稍后重试');
+        });
+    }
+    
+    // 重命名图集
+    function renameAlbum(albumId, newName) {
+        fetch('/api/album/rename', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                album_id: albumId,
+                name: newName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            closeManageModal('renameAlbumModal');
+            if (data.success) {
+                alert('图集已重命名');
+                window.location.reload();
+            } else {
+                alert(data.message || '重命名失败');
+            }
+        })
+        .catch(error => {
+            console.error('重命名图集失败:', error);
+            closeManageModal('renameAlbumModal');
+            alert('重命名失败，请稍后重试');
+        });
+    }
+    
+    // 从图集中移除文物
+    function removeArtifactFromAlbum(albumId, artifactId, artifactTitle) {
+        fetch('/api/album/remove_artifact', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                album_id: albumId,
+                artifact_id: artifactId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            closeManageModal('removeArtifactModal');
+            if (data.success) {
+                alert('已从图集中移除');
+                window.location.reload();
+            } else {
+                alert(data.message || '移除失败');
+            }
+        })
+        .catch(error => {
+            console.error('移除文物失败:', error);
+            closeManageModal('removeArtifactModal');
+            alert('移除失败，请稍后重试');
+        });
+    }
+    
+    // 点击模态框外部关闭
+    window.addEventListener('click', function(event) {
+        const deleteModal = document.getElementById('deleteAlbumModal');
+        const renameModal = document.getElementById('renameAlbumModal');
+        const removeModal = document.getElementById('removeArtifactModal');
+        if (event.target === deleteModal) {
+            closeManageModal('deleteAlbumModal');
+        }
+        if (event.target === renameModal) {
+            closeManageModal('renameAlbumModal');
+        }
+        if (event.target === removeModal) {
+            closeManageModal('removeArtifactModal');
+        }
+    });
+    
+    // 支持回车键确认重命名
+    document.addEventListener('DOMContentLoaded', function() {
+        const renameInput = document.getElementById('rename-album-input-detail');
+        if (renameInput) {
+            renameInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('confirm-rename-btn-detail').click();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+.pytest_cache/
+.mypy_cache/
+.cache/
+.tox/
+.coverage
+coverage.xml
+htmlcov/
+pip-wheel-metadata/
+*.sqlite3
+*.db
+instance/*.db
+static/uploads/
+node_modules/
+.python-version
+.ipynb_checkpoints/
+.ropeproject/
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# 忽略 met_images 文件夹及其所有内容
+static/images/met_images/
