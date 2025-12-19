@@ -233,6 +233,30 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
+def init_db():
+    """初始化資料庫，自動建立必要的表格"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS LOGS (
+                    Log_PK INT AUTO_INCREMENT PRIMARY KEY,
+                    Log_Time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    Artifact_PK INT,
+                    Table_Name VARCHAR(50),
+                    Operation_Type VARCHAR(50),
+                    User_ID VARCHAR(100),
+                    Status VARCHAR(20),
+                    Description TEXT
+                )
+            """)
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print("資料庫檢查完成：LOGS 表已就緒")
+        except Exception as e:
+            print(f"初始化資料庫失敗: {e}")
 
 from flask import Flask, render_template, request, abort, session, redirect, url_for, flash, jsonify
 import mysql.connector
@@ -2109,25 +2133,7 @@ def support_contact_submit():
     flash(f'感谢您的反馈！我们会尽快处理您的{feedback_type}请求。', 'success')
     return redirect(url_for('support'))
 
-@app.route('/support/admin')
-def support_admin():
-    """平台支持 - 后台管理（需要密码）"""
-    # 简单的密码验证，如果已经验证过就显示页面
-    if session.get('support_admin_verified'):
-        return render_template('support_admin.html')
-    return redirect(url_for('support_admin_login'))
 
-@app.route('/support/admin/login', methods=['GET', 'POST'])
-def support_admin_login():
-    """后台管理密码验证"""
-    if request.method == 'POST':
-        password = request.form.get('password', '')
-        if password == 'admin':  # 演示密码
-            session['support_admin_verified'] = True
-            return redirect(url_for('support_admin'))
-        else:
-            flash('密码错误，访问拒绝。', 'error')
-    return render_template('support_admin_login.html')
 
 @app.route('/user/collections')
 def user_collections():
@@ -2376,6 +2382,16 @@ def admin_import():
             return redirect(request.url)
     
     return render_template('admin_import.html')
+def log_system_action(action, table, status, desc):
+    """輔助函數：將後台行為寫入 LOGS 表"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO LOGS (Log_Time, Operation_Type, Table_Name, User_ID, Status, Description)
+        VALUES (NOW(), %s, %s, %s, %s, %s)
+    """, (action, table, session.get('is_admin', 'Admin'), status, desc))
+    conn.commit()
+    conn.close()
 
 def import_artifacts_from_dataframe(df, import_mode='skip'):
     """从DataFrame导入文物数据"""
@@ -2806,6 +2822,14 @@ def download_import_template():
                   
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    # 1. 先執行資料庫初始化（建表）
+    init_db()  
+    
+    # 2. 設定連接埠 (Port)
+    # 優先使用環境變數中的 PORT，如果沒有則使用 5001
+    port = int(os.getenv('PORT', 5001))
+    
+    # 3. 啟動 Flask 程式
+    print(f"系統啟動中... 訪問地址: http://127.0.0.1:{port}")
     app.run(debug=True, host='0.0.0.0', port=port)
 
