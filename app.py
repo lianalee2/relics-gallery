@@ -14,70 +14,85 @@ from functools import wraps
 from urllib.parse import quote, unquote
 
 
+import re
+
+# 1. 轉換工具：把「十九世紀」變成 19
+def chinese_to_int_century(cn_str):
+    cn_map = {'一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9, '十':10}
+    if not cn_str: return 0
+    s = cn_str.replace('世紀', '').replace('世纪', '').strip()
+    if not s: return 0
+    if s.isdigit(): return int(s)
+    
+    # 簡單處理：十, 十九, 二十, 二十一
+    if len(s) == 1: return cn_map.get(s, 0)
+    if len(s) == 2:
+        if s[0] == '十': return 10 + cn_map.get(s[1], 0)
+        if s[1] == '十': return cn_map.get(s[0], 0) * 10
+    if len(s) == 3:
+        return cn_map.get(s[0], 0) * 10 + cn_map.get(s[2], 0)
+    return 0
+
+# 2. 東方朝代關鍵字
+# 1. 關鍵字清單：加入更多特徵
 EAST_DYNASTY_KEYWORDS = [
-    "宋", "北宋", "南宋", "明", "清", "元", "唐", "汉", "秦", "晋", "隋",
-    "明至清", "明晚期至清早期"
+    "宋", "北宋", "南宋", "明", "清", "元", "唐", "漢", "汉", "秦", "晉", "晋", "隋",
+    "康熙", "雍正", "乾隆", "嘉慶", "道光", "咸豐", "同治", "光緒", "宣統", "錢", "銭"
 ]
 
 def is_east_chronology(date_cn: str) -> bool:
-
     if not date_cn:
         return False
+    s = str(date_cn).strip()
+
+    # --- 關鍵修正 A：明確的西方標識優先排除 ---
+    # 只有當出現「公元」且完全沒有「朝代」字眼時才算西方
+    has_east = any(k in s for k in EAST_DYNASTY_KEYWORDS)
+    if has_east:
+        return True
+
+    # --- 關鍵修正 B：處理 MET 的純數字或世紀 ---
+    if any(k in s for k in ["公元前", "BCE", "BC"]):
+        return False
         
-    s = date_cn.strip()
+    # 如果看到「世紀」但沒朝代，歸西方
+    if "世紀" in s or "世纪" in s:
+        return False
 
-    WEST_KEYWORDS = ["公元前", "BCE", "BC","公元","西元"]
-    
-    if any(k in s for k in WEST_KEYWORDS):
-        return False 
+    # 如果是故宮的資料 (通常帶有朝代或特定編號)，我們默認為東方
+    # 這裡檢查是否包含數字，若只有數字且沒有「世紀」，通常也是西方
+    if re.fullmatch(r'\d+', s):
+        return False
 
-    return any(k in s for k in EAST_DYNASTY_KEYWORDS)
-
+    return False
 
 def normalize_east_bucket(date_cn: str) -> str:
-    """
-    东方纪年桶：宋/明/清/明清/其他东
-    """
     if not date_cn:
-        return "其他东"
-    s = date_cn.strip()
+        return "其他東"
+    s = str(date_cn).strip()
 
-    # 跨代先判斷
-    if "明至清" in s or "明晚期至清早期" in s:
-        return "明清"
-
-    # 宋（含北宋/南宋）
+    # 1. 優先處理「宋」
     if "宋" in s:
+        if "北宋" in s: return "宋"
+        if "南宋" in s: return "宋"
         return "宋"
+
+    # 2. 處理「清」及其年號
+    qing_years = ["康熙", "雍正", "乾隆", "嘉慶", "道光", "咸豐", "同治", "光緒", "清"]
+    if any(k in s for k in qing_years):
+        return "清"
+
+    # 3. 處理「明」
     if "明" in s:
         return "明"
-    if "清" in s:
-        return "清"
-    return "其他东"
 
-CHINESE_TO_NUM = {
-    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
-}
-
-def chinese_to_int_century(cn_str):
-    """將中文世紀數字（例如「十二」、「二十一」）轉為阿拉伯數字"""
-    if not cn_str:
-        return 0
+    # 4. 處理其他主要朝代
+    if "元" in s: return "元"
+    if "唐" in s: return "唐"
+    if any(k in s for k in ["漢", "汉"]): return "漢"
     
-    # 處理 "二十X" (21-29)
-    if cn_str.startswith('二十') and len(cn_str) == 3:
-         return 20 + CHINESE_TO_NUM.get(cn_str[2], 0)
-    # 處理 "十X" (11-19)
-    if cn_str.startswith('十') and len(cn_str) == 2:
-        return 10 + CHINESE_TO_NUM.get(cn_str[1], 0)
-    # 處理 "二十" (20)
-    if cn_str == '二十':
-        return 20
-    # 處理 "十" (10)
-    if cn_str == '十':
-        return 10
-    # 處理 1-9
-    return CHINESE_TO_NUM.get(cn_str, 0)
+    # 5. 針對「購錢」或無法判定的故宮文物保底
+    return "其他東"
 
 def normalize_west_bucket(date_cn: str) -> str:
     """
@@ -142,6 +157,7 @@ def normalize_west_bucket(date_cn: str) -> str:
             return "现代"
 
     return "其他西"
+
 
 def normalize_era_from_date_cn(date_cn: str):
     """
@@ -237,27 +253,28 @@ def normalize_image_path(path):
     if not path:
         return None
 
-    path = str(path).strip()
+    # 1. 統一斜線並轉字串
+    p = str(path).strip().replace('\\', '/')
+    
+    # 2. 取得純檔名 (不論路徑多亂，只拿最後那段 xxx.jpg)
+    filename = p.split('/')[-1]
 
-    # 步驟 1: 修正反斜線
-    path = path.replace('\\', '/')
-
-    # 步驟 2: 去掉 static/ 以前的前綴
-    path_lower = path.lower()
-    static_keyword = 'static/'
-    static_index = path_lower.rfind(static_keyword)
-    if static_index != -1:
-        path = path[static_index + len(static_keyword):]
-
-    # 步驟 3: 確保前面有 images/ （解決 404 核心問題）
-    path = path.lstrip('/')
-
-    # 你的 Local_Path 儲存的是 met_images/xxx.jpg
-    # 如果路徑是 met_images/xxx.jpg，我們需要加上 images/
-    if path.startswith('met_images/'):
-        path = 'images/' + path
-
-    return path
+    # 3. 根據檔案名稱特徵，分配到正確的資料夾
+    # 故宮圖片特徵：包含 '故' 或 '購'
+    if any(k in filename for k in ['故', '購']):
+        # 強制指向 static/images/palace_images/ 
+        return f"images/palace_images/{filename}"
+    
+    # 大都會圖片特徵：純數字
+    elif filename.replace('.jpg', '').replace('.png', '').isdigit():
+        # 強制指向 static/images/met_images/
+        return f"images/met_images/{filename}"
+    
+    # 其他情況 (如果路徑已經是 images/開頭且正確)
+    if 'images/' in p:
+        return p.split('static/')[-1].lstrip('/')
+        
+    return f"images/{filename}"
 
 @app.route('/')
 def homepage():
