@@ -4,6 +4,22 @@
 
 {% block content %}
 <style>
+    :root {
+        /* 對接你的基礎樣式定義 */
+        --color-text: #4A4557;    /* 黛紫：對應你的正文文字色 */
+        --color-primary: #9E97B0; /* 紫藤灰：對應你的導航與主色 */
+        --border-color: #DBD8F0;  /* 薰衣草淡紫：對應你的邊框色 */
+        --color-white: #FFFFFF;
+        --color-accent: #E0C082;  /* 枯金：對應你的強調色 */
+    }
+    /* 強制修正：確保所有標題顯示為你的顏色，而不是黑色 */
+    .images-title, .image-title, .modal-header {
+        color: var(--color-text) !important;
+    }
+    
+    .image-meta {
+        color: #746E8A; /* 使用稍淺的紫色調代替純灰 */
+    }
     .admin-container {
         max-width: 1400px;
         margin: 40px auto;
@@ -203,7 +219,11 @@
 </style>
 
 <div class="admin-container">
-    <a href="{{ url_for('admin_dashboard') }}" class="back-link" style="color: var(--color-primary); text-decoration: none; margin-bottom: 20px; display: inline-block;">← 返回仪表板</a>
+    <div class="admin-container">
+        <a href="{{ url_for('admin_dashboard') }}" style="color: #9E97B0; text-decoration: none; font-weight: bold; margin-bottom: 20px; display: inline-block;">
+            ← 返回儀表板
+        </a>
+    </div>
     
     <div class="images-panel">
         <div class="images-header">
@@ -219,9 +239,10 @@
             <div class="image-card">
                 <div class="image-preview">
                     {% if image.Local_Path %}
-                        <img src="{{ url_for('static', filename=image.Local_Path) }}" 
-                             alt="{{ image.Title_CN }}"
-                             onerror="this.parentElement.innerHTML='<div class=\'image-placeholder\'>图片加载失败</div>'">
+                    <img src="{{ url_for('static', filename='images/palace_images/' + image.Local_Path.split('/')[-1]) }}" 
+                        alt="{{ image.Title_CN }}"
+                        style="width: 100%; height: 200px; object-fit: cover;"
+                        onerror="this.src='{{ url_for('static', filename='images/logo.png') }}';">
                     {% else %}
                         <div class="image-placeholder">暂无图片</div>
                     {% endif %}
