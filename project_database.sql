@@ -1,12 +1,12 @@
 USE project;
 
-CREATE TABLE SOURCES (
+CREATE TABLE IF NOT EXISTS SOURCES (
     Source_ID       INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。数据来源机构的唯一识别码。',
     Museum_Code     VARCHAR(10) NOT NULL COMMENT '来源机构的简称代码 (例如：MET, NPM)。',
     Museum_Name_CN  VARCHAR(100) NOT NULL UNIQUE COMMENT '来源机构的中文全名，设置为唯一值。'
 )COMMENT'文物来源机构';
 
-CREATE TABLE ARTIFACTS (
+CREATE TABLE IF NOT EXISTS ARTIFACTS (
     Artifact_PK      INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。文物在系统内部的唯一识别码。',
     Source_ID        INT NOT NULL COMMENT '外键。链接到 SOURCES 表，标识文物所属的机构。',
     Original_ID      VARCHAR(50) NOT NULL COMMENT '原始档案中的馆藏编号或物件编号。',
@@ -24,7 +24,7 @@ CREATE TABLE ARTIFACTS (
         ON DELETE RESTRICT
 )COMMENT'文物本体';
 
-CREATE TABLE DIMENSIONS (
+CREATE TABLE IF NOT EXISTS DIMENSIONS (
     Dimension_PK     INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。尺寸记录的唯一识别码。',
     Artifact_PK      INT NOT NULL COMMENT '外键。链接到 ARTIFACTS 表。',
     Size_Type        VARCHAR(50) NOT NULL COMMENT '尺寸类型（例如：高/Length, 宽/Width, 直径/Diameter）。',
@@ -37,7 +37,7 @@ CREATE TABLE DIMENSIONS (
         ON DELETE CASCADE
 )COMMENT'文物尺寸';
 
-CREATE TABLE PROPERTIES (
+CREATE TABLE IF NOT EXISTS PROPERTIES (
     Property_PK      INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。属性细节的唯一识别码。',
     Artifact_PK      INT NOT NULL COMMENT '外键。链接到 ARTIFACTS 表。',
     Geography        VARCHAR(100) COMMENT '文物的地理来源或出土地点。',
@@ -52,7 +52,7 @@ CREATE TABLE PROPERTIES (
         ON DELETE CASCADE
 )COMMENT'文物相关外部实体';
 
-CREATE TABLE IMAGE_VERSIONS (
+CREATE TABLE IF NOT EXISTS IMAGE_VERSIONS (
     Version_PK           INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。图片版本的唯一识别码。',
     Artifact_PK          INT NOT NULL COMMENT '外键。链接到 ARTIFACTS 表。',
     Version_Type         VARCHAR(50) NOT NULL COMMENT '图片版本类型（例如：Original, Thumbnail, Web_Optimized 等）。',
@@ -70,7 +70,7 @@ CREATE TABLE IMAGE_VERSIONS (
         ON DELETE CASCADE
 )COMMENT'文物图像';
 
-CREATE TABLE LOGS (
+CREATE TABLE IF NOT EXISTS LOGS (
     Log_PK           INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键。日志记录的唯一识别码。',
     Log_Time         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发生事件的准确时间，自动记录。',
     Artifact_PK      INT COMMENT '外键。事件相关的文物 ID。',
@@ -85,6 +85,12 @@ CREATE TABLE LOGS (
         REFERENCES ARTIFACTS (Artifact_PK)
         ON DELETE SET NULL
 )COMMENT'日志';
+
+ALTER TABLE ARTIFACTS
+ADD COLUMN start_year INT COMMENT '文物所屬朝代的起始年份 (公元前為負數, 例如 秦朝: -221)',
+ADD COLUMN end_year INT COMMENT '文物所屬朝代的結束年份 (公元後為正數, 例如 清朝: 1912)';
+
+DROP TRIGGER IF EXISTS artifacts_update_log;
 
 DELIMITER //
 
