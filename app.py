@@ -9,9 +9,8 @@ import pandas as pd
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from functools import wraps
-import re
-from urllib.parse import quote, unquote
-import re
+
+# 確保這兩個在你的 app.py 中
 from urllib.parse import quote, unquote
 
 
@@ -21,13 +20,17 @@ EAST_DYNASTY_KEYWORDS = [
 ]
 
 def is_east_chronology(date_cn: str) -> bool:
-    """
-    有朝代/東亞紀年詞 → 东方纪年
-    其他（仅年份/世纪/CE/BCE/公元…）→ 西方纪年
-    """
+
     if not date_cn:
         return False
+        
     s = date_cn.strip()
+
+    WEST_KEYWORDS = ["公元前", "BCE", "BC","公元","西元"]
+    
+    if any(k in s for k in WEST_KEYWORDS):
+        return False 
+
     return any(k in s for k in EAST_DYNASTY_KEYWORDS)
 
 
@@ -52,25 +55,49 @@ def normalize_east_bucket(date_cn: str) -> str:
         return "清"
     return "其他东"
 
+CHINESE_TO_NUM = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+}
+
+def chinese_to_int_century(cn_str):
+    """將中文世紀數字（例如「十二」、「二十一」）轉為阿拉伯數字"""
+    if not cn_str:
+        return 0
+    
+    # 處理 "二十X" (21-29)
+    if cn_str.startswith('二十') and len(cn_str) == 3:
+         return 20 + CHINESE_TO_NUM.get(cn_str[2], 0)
+    # 處理 "十X" (11-19)
+    if cn_str.startswith('十') and len(cn_str) == 2:
+        return 10 + CHINESE_TO_NUM.get(cn_str[1], 0)
+    # 處理 "二十" (20)
+    if cn_str == '二十':
+        return 20
+    # 處理 "十" (10)
+    if cn_str == '十':
+        return 10
+    # 處理 1-9
+    return CHINESE_TO_NUM.get(cn_str, 0)
 
 def normalize_west_bucket(date_cn: str) -> str:
     """
-    西方纪年桶：古代/中世纪/近世/近代/现代/其他西
-    這裡用「粗分」：按最早年份（或世纪）估計。
+    西方纪年桶：古代 / 中世纪 / 近世 / 近代 / 现代 / 其他西
+    按最早年份或世纪粗分。
     """
     if not date_cn:
         return "其他西"
     s = date_cn.strip()
 
-    # BCE / 公元前：當成古代
+    # 1. BCE / 公元前：当成古代
     if "公元前" in s or "BCE" in s or "BC" in s:
         return "古代"
 
-    # 世纪：提取 "19世纪" 這種
+    # 2. 数字世纪：19世纪 / 20世纪
     m_cent = re.search(r"(\d{1,2})\s*世紀|(\d{1,2})\s*世纪", s)
     if m_cent:
         cent = int(m_cent.group(1) or m_cent.group(2))
-        # 5-15世纪：中世纪；16-18：近世；19：近代；20+：现代
+        if cent <= 4:
+            return "古代"
         if 5 <= cent <= 15:
             return "中世纪"
         if 16 <= cent <= 18:
@@ -79,26 +106,42 @@ def normalize_west_bucket(date_cn: str) -> str:
             return "近代"
         if cent >= 20:
             return "现代"
-        return "古代"
+        return "其他西"
 
-    # 年份：抓第一個四位數（1707、1893、410 等）
+    # 3. 中文数字世纪：十二世纪 / 二十世纪
+    m_cn_cent = re.search(r"([一二三四五六七八九十]+)\s*(世紀|世纪)", s)
+    if m_cn_cent:
+        cn_cent_str = m_cn_cent.group(1)
+        cent = chinese_to_int_century(cn_cent_str)
+        if cent > 0:
+            if cent <= 4:
+                return "古代"
+            if 5 <= cent <= 15:
+                return "中世纪"
+            if 16 <= cent <= 18:
+                return "近世"
+            if cent == 19:
+                return "近代"
+            if cent >= 20:
+                return "现代"
+        return "其他西"
+
+    # 4. 具体年份：1707, 1893, 410 等
     m_year = re.search(r"(\d{3,4})", s)
     if m_year:
         y = int(m_year.group(1))
-        # 这里按“最早年份”粗分：<=500 古代；501-1500 中世纪；1501-1800 近世；1801-1914 近代；1915+ 现代
         if y <= 500:
             return "古代"
         if 501 <= y <= 1500:
             return "中世纪"
         if 1501 <= y <= 1800:
             return "近世"
-        if 1801 <= y <= 1914:
+        if 1801 <= y <= 1900:
             return "近代"
-        if y >= 1915:
+        if y >= 1901:
             return "现代"
 
     return "其他西"
-
 
 def normalize_era_from_date_cn(date_cn: str):
     """
@@ -144,7 +187,6 @@ def era_from_key(key: str):
     a, b = key.split("__", 1)
     return (sys_rev.get(a), bucket_rev.get(b))
 
-
 # 文化描述映射（用于文化浏览页面）
 CULTURE_DESCRIPTIONS = {
     '中华文化': '包含中原、楚、巴蜀、吴越等地域文化遗产。',
@@ -158,11 +200,12 @@ CULTURE_DESCRIPTIONS = {
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production-2024')
 
+
 # 数据库配置（支持环境变量）
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'leeanna'),
+    'password': os.getenv('DB_PASSWORD', 'emilylee0413'),
     'database': os.getenv('DB_NAME', 'project')
 }
 
@@ -175,62 +218,45 @@ def get_db_connection():
         print(f"Error connecting to MySQL: {e}")
         return None
 
+from flask import Flask, render_template, request, abort, session, redirect, url_for, flash, jsonify
+import mysql.connector
+from mysql.connector import Error
+import os
+import re
+from werkzeug.security import generate_password_hash, check_password_hash
+from query_builder import build_search_query, build_cultures_browse_query, build_culture_artifacts_query
+import pandas as pd
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from functools import wraps
+from urllib.parse import quote, unquote # 確保這些被匯入了
+
+# ... (其他程式碼) ...
+
 def normalize_image_path(path):
-    """
-    规范化图片路径，确保路径格式正确
-    将Windows路径的反斜杠转换为正斜杠，移除开头的斜杠
-    返回相对于static文件夹的路径（例如：met_images/472562.jpg）
-    """
-    if not path:
-        return None
-    
-    # 转换为字符串并去除首尾空格
-    path = str(path).strip()
-    
-    # 将反斜杠转换为正斜杠
-    path = path.replace('\\', '/')
-    
-    # 移除开头的斜杠
-    path = path.lstrip('/')
-    
-    # 如果路径包含 'static/'，提取后面的部分
-    if 'static/' in path.lower():
-        # 不区分大小写查找
-        parts = path.split('/')
-        try:
-            # 查找 static 的位置（不区分大小写）
-            static_index = next(i for i, part in enumerate(parts) if part.lower() == 'static')
-            if static_index + 1 < len(parts):
-                path = '/'.join(parts[static_index + 1:])
-        except StopIteration:
-            pass
-    
-    # 如果路径是绝对路径（包含盘符），尝试提取相对路径
-    # 例如：D:/a_schoolworks/.../static/met_images/472562.jpg -> met_images/472562.jpg
-    if ':' in path:
-        # 查找 static/ 后面的部分
-        parts = path.split('/')
-        try:
-            static_index = next(i for i, part in enumerate(parts) if part.lower() == 'static')
-            if static_index + 1 < len(parts):
-                path = '/'.join(parts[static_index + 1:])
-        except StopIteration:
-            # 如果没有找到 static，尝试查找 met_images
-            try:
-                met_index = next(i for i, part in enumerate(parts) if part.lower() == 'met_images')
-                if met_index < len(parts):
-                    path = '/'.join(parts[met_index:])
-            except StopIteration:
-                pass
-    
-    # 确保路径不为空
     if not path:
         return None
 
-    # 如果路径已经以 images/ 开头，不再添加
-    if not path.startswith('images/'):
+    path = str(path).strip()
+
+    # 步驟 1: 修正反斜線
+    path = path.replace('\\', '/')
+
+    # 步驟 2: 去掉 static/ 以前的前綴
+    path_lower = path.lower()
+    static_keyword = 'static/'
+    static_index = path_lower.rfind(static_keyword)
+    if static_index != -1:
+        path = path[static_index + len(static_keyword):]
+
+    # 步驟 3: 確保前面有 images/ （解決 404 核心問題）
+    path = path.lstrip('/')
+
+    # 你的 Local_Path 儲存的是 met_images/xxx.jpg
+    # 如果路徑是 met_images/xxx.jpg，我們需要加上 images/
+    if path.startswith('met_images/'):
         path = 'images/' + path
-    
+
     return path
 
 @app.route('/')
@@ -929,6 +955,37 @@ def geography_detail(geography_id):
         return render_template('error.html', 
                              error_message=f"数据库查询错误: {str(e)}"), 500
 
+
+
+def get_db_connection():
+    """建立資料庫連線的通用函數"""
+    try:
+        # 假設你的 db_config 已經修正了正確的密碼
+        conn = mysql.connector.connect(**db_config)
+        return conn
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
+
+
+def era_key(system, bucket):
+    """將年代體系和名稱組合成 URL 友好的 key"""
+    # 使用 quote 確保中文能夠在 URL 中正確傳輸
+    return quote(f"{system}_{bucket}")
+
+def era_from_key(era_key_str):
+    """從 URL 友好的 key 中解析出年代體系和名稱"""
+    try:
+        from urllib.parse import unquote # 確保 unquote 在這裡可用
+        decoded_str = unquote(era_key_str)
+        parts = decoded_str.split('_', 1)
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        return None, None
+    except Exception:
+        return None, None
+
+
 @app.route('/eras')
 @app.route('/browse_eras')
 def browse_eras():
@@ -1016,17 +1073,28 @@ def browse_eras_west():
     if err:
         return err
 
+    # 1. 先定义每个年代桶对应的年份区间（你可以按需要调整）
     west_order = ["古代", "中世纪", "近世", "近代", "现代", "其他西"]
+    west_ranges = {
+        "古代":  "（公元前 - 500）",
+        "中世纪": "（501 - 1500）",
+        "近世":  "（1501 - 1800）",
+        "近代":  "（1801 - 1900）",
+        "现代":  "（1901 - 今）",
+        "其他西": ""   # 可以留空或写“（待定）”
+    }
+
     eras = []
     for b in west_order:
         k = ("西方纪年", b)
         if k in buckets and buckets[k]["count"] > 0:
             eras.append({
                 "era_key": era_key("西方纪年", b),
-                "title": b,
+                # 2. 标题里同时放“桶名 + 年份区间”
+                "title": f"{b}{west_ranges.get(b, '')}",
                 "artifact_count": buckets[k]["count"],
                 "representative_image": buckets[k]["rep_img"],
-                "description": f"西方纪年 · {b}"
+                "description": f"西方纪年 · {b}{west_ranges.get(b, '')}"
             })
 
     return render_template(
@@ -1035,6 +1103,7 @@ def browse_eras_west():
         back_url=url_for('browse_eras'),
         eras=eras
     )
+
 @app.route('/era/<era_key_str>')
 def era_detail(era_key_str):
     """
@@ -1090,6 +1159,7 @@ def era_detail(era_key_str):
         except Exception:
             pass
         return render_template('error.html', error_message=f"数据库查询错误: {str(e)}"), 500
+
 
 
 # ========== 用户认证相关函数 ==========
@@ -2715,8 +2785,10 @@ def download_import_template():
         mimetype='text/csv',
         as_attachment=True,
         download_name='artifact_import_template.csv'
-    )                      
+    )  
+                  
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
+
