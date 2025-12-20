@@ -1,337 +1,90 @@
 {% extends 'base.html' %}
 
-{% block title %}操作日志 - 管理员后台{% endblock %}
+{% block title %}系統日誌 - 管理員後台{% endblock %}
 
 {% block content %}
 <style>
     .admin-container {
-        max-width: 1400px;
+        max-width: 1200px;
         margin: 40px auto;
         padding: 0 20px;
     }
-    
-    .back-link {
-        color: var(--color-primary);
-        text-decoration: none;
-        margin-bottom: 20px;
-        display: inline-block;
-    }
-    
-    .back-link:hover {
-        text-decoration: underline;
-    }
-    
-    .logs-panel {
-        background-color: var(--color-white);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
+    .panel {
+        background: white;
         padding: 30px;
-    }
-    
-    .logs-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-        padding-bottom: 20px;
-        border-bottom: 2px solid var(--border-color);
-    }
-    
-    .logs-title {
-        font-size: 2rem;
-        font-weight: bold;
-        color: var(--color-text);
-    }
-    
-    /* 筛选区域 */
-    .filter-section {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 30px;
-    }
-    
-    .filter-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
-        margin-bottom: 15px;
-    }
-    
-    .filter-group {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .filter-label {
-        font-size: 0.9rem;
-        font-weight: bold;
-        color: var(--color-text);
-        margin-bottom: 5px;
-    }
-    
-    .filter-input, .filter-select {
-        padding: 8px 12px;
+        border-radius: 12px;
         border: 1px solid var(--border-color);
-        border-radius: 4px;
-        font-size: 0.9rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    
-    .filter-actions {
-        display: flex;
-        gap: 10px;
-    }
-    
-    .filter-btn {
-        padding: 8px 20px;
-        border: none;
-        border-radius: 4px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .filter-btn-primary {
-        background-color: var(--color-primary);
-        color: var(--color-white);
-    }
-    
-    .filter-btn-secondary {
-        background-color: #6c757d;
-        color: var(--color-white);
-    }
-    
-    .filter-btn:hover {
-        opacity: 0.9;
-    }
-    
-    /* 日志表格 */
-    .logs-table {
+    .log-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.9rem;
+        margin-top: 20px;
     }
-    
-    .logs-table thead {
+    .log-table th {
         background-color: var(--color-lavender);
-    }
-    
-    .logs-table th {
-        padding: 12px;
+        padding: 15px;
         text-align: left;
-        font-weight: bold;
-        color: var(--color-text);
         border-bottom: 2px solid var(--border-color);
     }
-    
-    .logs-table td {
-        padding: 12px;
+    .log-table td {
+        padding: 12px 15px;
         border-bottom: 1px solid #eee;
-        vertical-align: top;
+        font-size: 0.9rem;
     }
-    
-    .logs-table tr:hover {
-        background-color: #f8f9fa;
-    }
-    
-    .log-time {
-        white-space: nowrap;
-        color: #666;
-    }
-    
-    .log-operation {
-        font-weight: bold;
-        color: var(--color-primary);
-    }
-    
-    .log-status {
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: bold;
-        white-space: nowrap;
-    }
-    
-    .status-success {
-        background-color: #d4edda;
-        color: #155724;
-    }
-    
-    .status-failed {
-        background-color: #f8d7da;
-        color: #721c24;
-    }
-    
-    .log-description {
-        color: #555;
-        max-width: 400px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .artifact-link {
-        color: var(--color-primary);
-        text-decoration: none;
-    }
-    
-    .artifact-link:hover {
-        text-decoration: underline;
-    }
-    
-    .no-logs {
-        text-align: center;
-        padding: 60px;
-        color: #999;
-    }
-    
-    .export-btn {
-        padding: 10px 20px;
-        background-color: #28a745;
-        color: var(--color-white);
-        border: none;
+    .status-badge {
+        padding: 4px 10px;
         border-radius: 4px;
+        font-size: 0.8rem;
         font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s;
     }
-    
-    .export-btn:hover {
-        background-color: #218838;
-    }
+    .status-success { background: #c6f6d5; color: #22543d; }
+    .status-fail { background: #fed7d7; color: #822727; }
 </style>
 
 <div class="admin-container">
-    <a href="{{ url_for('admin_dashboard') }}" class="back-link">← 返回仪表板</a>
-    
-    <div class="logs-panel">
-        <div class="logs-header">
-            <h1 class="logs-title">📋 操作日志</h1>
-            <button class="export-btn" onclick="exportLogs()">导出日志</button>
-        </div>
-        
-        <!-- 筛选区域 -->
-        <div class="filter-section">
-            <form action="{{ url_for('admin_logs') }}" method="GET">
-                <div class="filter-grid">
-                    <div class="filter-group">
-                        <label class="filter-label">操作类型</label>
-                        <select name="operation_type" class="filter-select">
-                            <option value="">全部</option>
-                            {% for op in operation_types %}
-                            <option value="{{ op }}" {% if filters.operation_type == op %}selected{% endif %}>
-                                {{ op }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label class="filter-label">数据表</label>
-                        <select name="table_name" class="filter-select">
-                            <option value="">全部</option>
-                            {% for table in table_names %}
-                            <option value="{{ table }}" {% if filters.table_name == table %}selected{% endif %}>
-                                {{ table }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label class="filter-label">开始日期</label>
-                        <input type="date" 
-                               name="date_from" 
-                               class="filter-input"
-                               value="{{ filters.date_from }}">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label class="filter-label">结束日期</label>
-                        <input type="date" 
-                               name="date_to" 
-                               class="filter-input"
-                               value="{{ filters.date_to }}">
-                    </div>
-                </div>
-                
-                <div class="filter-actions">
-                    <button type="submit" class="filter-btn filter-btn-primary">应用筛选</button>
-                    <button type="button" class="filter-btn filter-btn-secondary" onclick="clearFilters()">清除筛选</button>
-                </div>
-            </form>
-        </div>
-        
-        <!-- 日志列表 -->
-        {% if logs %}
-        <div style="margin-bottom: 15px; color: #666;">
-            共找到 {{ logs|length }} 条记录（最多显示1000条）
-        </div>
-        
-        <table class="logs-table">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('admin_dashboard') }}" style="text-decoration: none; color: #9E97B0;">← 返回儀表板</a>
+    </div>
+
+    <div class="panel">
+        <h1 style="margin-top: 0;">📋 完整系統操作日誌</h1>
+        <p style="color: #666;">記錄所有管理員的批量導入、圖片替換與系統變更行為。</p>
+
+        <table class="log-table">
             <thead>
                 <tr>
-                    <th style="width: 150px;">时间</th>
-                    <th style="width: 120px;">操作类型</th>
-                    <th style="width: 100px;">数据表</th>
-                    <th style="width: 150px;">文物</th>
-                    <th style="width: 100px;">操作人</th>
-                    <th style="width: 80px;">状态</th>
-                    <th>描述</th>
+                    <th>時間</th>
+                    <th>操作類型</th>
+                    <th>資料表</th>
+                    <th>操作者</th>
+                    <th>狀態</th>
+                    <th>詳細描述</th>
                 </tr>
             </thead>
             <tbody>
-                {% for log in logs %}
-                <tr>
-                    <td class="log-time">{{ log.Log_Time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                    <td class="log-operation">{{ log.Operation_Type }}</td>
-                    <td>{{ log.Table_Name }}</td>
-                    <td>
-                        {% if log.Artifact_PK %}
-                            <a href="{{ url_for('detail', artifact_id=log.Artifact_PK) }}" 
-                               class="artifact-link"
-                               target="_blank">
-                                {{ log.artifact_title[:20] if log.artifact_title else 'ID:' + log.Artifact_PK|string }}
-                            </a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>{{ log.User_ID or '-' }}</td>
-                    <td>
-                        <span class="log-status {% if log.Status == 'Success' %}status-success{% else %}status-failed{% endif %}">
-                            {{ log.Status }}
-                        </span>
-                    </td>
-                    <td class="log-description">{{ log.Description }}</td>
-                </tr>
-                {% endfor %}
+                {% if logs %}
+                    {% for log in logs %}
+                    <tr>
+                        <td style="white-space: nowrap;">{{ log.Log_Time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td><strong>{{ log.Operation_Type }}</strong></td>
+                        <td>{{ log.Table_Name }}</td>
+                        <td>{{ log.User_ID }}</td>
+                        <td>
+                            <span class="status-badge {% if log.Status == 'Success' %}status-success{% else %}status-fail{% endif %}">
+                                {{ log.Status }}
+                            </span>
+                        </td>
+                        <td>{{ log.Description }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #999;">暫無任何日誌記錄</td>
+                    </tr>
+                {% endif %}
             </tbody>
         </table>
-        {% else %}
-        <div class="no-logs">
-            <p style="font-size: 1.2rem; margin-bottom: 10px;">暂无日志记录</p>
-            <p style="font-size: 0.9rem;">尝试调整筛选条件或清除筛选</p>
-        </div>
-        {% endif %}
     </div>
 </div>
-
-<script>
-    function clearFilters() {
-        window.location.href = "{{ url_for('admin_logs') }}";
-    }
-    
-    function exportLogs() {
-        // 导出当前筛选的日志为CSV
-        const params = new URLSearchParams(window.location.search);
-        params.set('export', 'csv');
-        
-        // 创建下载链接
-        const url = "{{ url_for('admin_logs') }}?" + params.toString();
-        
-        // TODO: 实现实际的导出功能
-        alert('导出功能开发中...\n将导出当前筛选的日志为CSV文件');
-    }
-</script>
 {% endblock %}

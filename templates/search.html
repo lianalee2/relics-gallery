@@ -82,10 +82,6 @@
         opacity: 0.7;
     }
 
-    .filter-tag-remove:hover {
-        opacity: 1;
-    }
-
     /* 筛选分组 */
     .filter-group {
         margin-bottom: 25px;
@@ -100,73 +96,44 @@
         margin-bottom: 12px;
         color: var(--color-text);
         cursor: pointer;
-        user-select: none;
-    }
-
-    .filter-group-title:hover {
-        color: var(--color-primary);
-    }
-
-    .filter-group-toggle {
-        font-size: 1.2rem;
-        color: #999;
-        transition: transform 0.2s;
-    }
-
-    .filter-group.collapsed .filter-group-toggle {
-        transform: rotate(0deg);
-    }
-
-    .filter-group.expanded .filter-group-toggle {
-        transform: rotate(90deg);
     }
 
     .filter-group-content {
-        max-height: 500px;
-        overflow-y: auto;
+        max-height: 800px;
+        overflow: hidden;
         transition: max-height 0.3s ease;
     }
 
     .filter-group.collapsed .filter-group-content {
         max-height: 0;
-        overflow: hidden;
     }
 
     /* 复选框列表 */
     .filter-checkbox-list {
         list-style: none;
         padding: 0;
+        margin: 0;
     }
 
     .filter-checkbox-item {
         display: flex;
         align-items: center;
         padding: 8px 0;
-        cursor: pointer;
     }
 
     .filter-checkbox-item input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
+        width: 17px;
+        height: 17px;
         margin-right: 10px;
-        cursor: pointer;
         accent-color: var(--color-primary);
     }
 
     .filter-checkbox-item label {
         flex: 1;
-        cursor: pointer;
         font-size: 0.9rem;
-        color: var(--color-text);
         display: flex;
         justify-content: space-between;
-        align-items: center;
-    }
-
-    .filter-count {
-        color: #999;
-        font-size: 0.85rem;
-        margin-left: 8px;
+        cursor: pointer;
     }
 
     /* 主内容区域 */
@@ -179,270 +146,237 @@
         margin-bottom: 20px;
     }
 
-    .search-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        margin-bottom: 8px;
-        color: var(--color-text);
-    }
-
-    .search-result-count {
-        color: #666;
-        font-size: 0.95rem;
-    }
-
-    /* 排序栏 */
     .sort-bar {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        justify-content: flex-end;
         margin-bottom: 25px;
-        padding: 15px;
-        background-color: var(--color-white);
-        border: 1px solid var(--border-color);
+        padding: 12px;
+        background: #fff;
         border-radius: 8px;
-    }
-
-    .sort-label {
-        font-size: 0.95rem;
-        color: var(--color-text);
-        margin-right: 10px;
-    }
-
-    .sort-select {
-        position: relative;
-        display: inline-block;
-    }
-
-    .sort-select select {
-        padding: 8px 35px 8px 15px;
         border: 1px solid var(--border-color);
-        border-radius: 4px;
-        background-color: var(--color-white);
-        color: var(--color-text);
-        font-size: 0.95rem;
-        cursor: pointer;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234A4063' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 10px center;
-        background-size: 12px;
-        min-width: 180px;
     }
 
-    .sort-select select:focus {
-        outline: none;
-        border-color: var(--color-primary);
-    }
-
-    /* 搜索结果网格 */
+    /* 搜索结果网格 - 強制一致性 */
     .search-results-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
         gap: 25px;
     }
 
-    /* 无结果提示 */
-    .no-results {
-        text-align: center;
-        padding: 60px 20px;
-        color: #999;
-        background-color: var(--color-white);
+    .card {
+        background: #fff;
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        border-radius: 12px;
+        overflow: hidden;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.3s, box-shadow 0.3s;
+        display: flex;
+        flex-direction: column;
     }
 
-    .no-results-title {
-        font-size: 1.2rem;
-        margin-bottom: 10px;
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.08);
     }
 
-    .no-results-text {
-        font-size: 0.9rem;
-        margin-bottom: 30px;
+    .card-image-wrapper {
+        width: 100%;
+        aspect-ratio: 4/3;
+        background: #f8f8f8;
+        overflow: hidden;
+    }
+
+    .card-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .card-info {
+        padding: 15px;
+    }
+
+    .card-title {
+        font-weight: bold;
+        font-size: 1rem;
+        margin-bottom: 5px;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .card-date {
+        font-size: 0.85rem;
+        color: #8b4513;
+    }
+
+    /* 自定義年代輸入樣式 */
+    .custom-era-input {
+        padding: 12px;
+        background: #fdfaf5;
+        margin-top: 10px;
+        border-radius: 6px;
+        border: 1px solid #eee;
     }
 </style>
 
 <div class="search-page-container">
-    <!-- 左侧筛选栏 -->
     <aside class="filter-sidebar">
         <div class="filter-header">
             <h3 class="filter-title">高级筛选</h3>
-            <button class="clear-filter-btn" onclick="clearAllFilters()">清空筛选</button>
+            <button class="clear-filter-btn" onclick="clearAllFilters()">清空</button>
         </div>
 
-        <!-- 激活的筛选标签 -->
-        <div class="active-filters" id="activeFilters">
+        <div class="active-filters">
             {% if active_filters %}
-                {% for filter_type, filter_value in active_filters.items() %}
-                    {% for value in filter_value %}
+                {% for filter_type, filter_values in active_filters.items() %}
+                    {% if filter_type == 'year_range' %}
                         <span class="filter-tag">
-                            {{ filter_type }}:{{ value }}
-                            <span class="filter-tag-remove" onclick="removeFilter('{{ filter_type }}', '{{ value }}')">×</span>
+                            年代: {{ filter_values }}
+                            <span class="filter-tag-remove" onclick="clearEra()">×</span>
                         </span>
-                    {% endfor %}
+                    {% else %}
+                        {% for value in filter_values %}
+                            <span class="filter-tag">
+                                {{ value }}
+                                <span class="filter-tag-remove" onclick="removeFilter('{{ filter_type }}', '{{ value }}')">×</span>
+                            </span>
+                        {% endfor %}
+                    {% endif %}
                 {% endfor %}
             {% endif %}
         </div>
 
-        <!-- 文化筛选 -->
-        <div class="filter-group expanded" data-group="culture">
+        <div class="filter-group expanded">
             <div class="filter-group-title" onclick="toggleFilterGroup(this)">
                 <span>文化</span>
-                <span class="filter-group-toggle">+</span>
+                <span class="filter-group-toggle">−</span>
             </div>
             <div class="filter-group-content">
                 <ul class="filter-checkbox-list">
                     {% for culture in filter_options.cultures|default([]) %}
-                    {% set culture_id = 'culture-' + culture.value|replace(' ', '-')|replace('(', '')|replace(')', '')|replace('/', '-')|replace('\\', '-')|replace(':', '-')|replace('*', '-')|replace('?', '-')|replace('"', '-')|replace('<', '-')|replace('>', '-')|replace('|', '-') %}
                     <li class="filter-checkbox-item">
-                        <input type="checkbox" 
-                               id="{{ culture_id }}" 
-                               name="culture" 
-                               value="{{ culture.value }}"
+                        <input type="checkbox" name="culture" value="{{ culture.value }}"
                                {% if culture.value in active_filters.get('culture', []) %}checked{% endif %}
                                onchange="applyFilter('culture', '{{ culture.value }}', this.checked)">
-                        <label for="{{ culture_id }}">
+                        <label>
                             <span>{{ culture.label }}</span>
                             <span class="filter-count">({{ culture.count }})</span>
                         </label>
                     </li>
                     {% endfor %}
-                    {% if not filter_options.cultures or filter_options.cultures|length == 0 %}
-                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">暂无文化数据</li>
-                    {% endif %}
                 </ul>
             </div>
         </div>
 
-        <!-- 材质筛选 -->
-        <div class="filter-group expanded" data-group="material">
+        <div class="filter-group expanded">
             <div class="filter-group-title" onclick="toggleFilterGroup(this)">
                 <span>材质</span>
-                <span class="filter-group-toggle">+</span>
+                <span class="filter-group-toggle">−</span>
             </div>
             <div class="filter-group-content">
                 <ul class="filter-checkbox-list">
                     {% for material in filter_options.materials|default([]) %}
-                    {% set material_id = 'material-' + material.value|replace(' ', '-')|replace('(', '')|replace(')', '')|replace('/', '-')|replace('\\', '-')|replace(':', '-')|replace('*', '-')|replace('?', '-')|replace('"', '-')|replace('<', '-')|replace('>', '-')|replace('|', '-') %}
                     <li class="filter-checkbox-item">
-                        <input type="checkbox" 
-                               id="{{ material_id }}" 
-                               name="material" 
-                               value="{{ material.value }}"
+                        <input type="checkbox" name="material" value="{{ material.value }}"
                                {% if material.value in active_filters.get('material', []) %}checked{% endif %}
                                onchange="applyFilter('material', '{{ material.value }}', this.checked)">
-                        <label for="{{ material_id }}">
+                        <label>
                             <span>{{ material.label }}</span>
                             <span class="filter-count">({{ material.count }})</span>
                         </label>
                     </li>
                     {% endfor %}
-                    {% if not filter_options.materials or filter_options.materials|length == 0 %}
-                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">暂无材质数据</li>
-                    {% endif %}
                 </ul>
             </div>
         </div>
 
-        <!-- 地区筛选 -->
-        <div class="filter-group collapsed" data-group="region">
+        <div class="filter-group expanded">
             <div class="filter-group-title" onclick="toggleFilterGroup(this)">
-                <span>地区</span>
-                <span class="filter-group-toggle">+</span>
+                <span>年代篩選</span>
+                <span class="filter-group-toggle">−</span>
             </div>
             <div class="filter-group-content">
+                <div style="font-size: 0.85rem; font-weight: bold; color: #8b4513; margin: 5px 0;">東方 (中國)</div>
                 <ul class="filter-checkbox-list">
-                    {% for region in filter_options.regions|default([]) %}
                     <li class="filter-checkbox-item">
-                        <input type="checkbox" 
-                               id="region-{{ region.value }}" 
-                               name="region" 
-                               value="{{ region.value }}"
-                               {% if region.value in active_filters.get('region', []) %}checked{% endif %}
-                               onchange="applyFilter('region', '{{ region.value }}', this.checked)">
-                        <label for="region-{{ region.value }}">
-                            <span>{{ region.label }}</span>
-                            <span class="filter-count">({{ region.count }})</span>
-                        </label>
+                        <input type="checkbox" name="era_range" value="960|1279" onchange="applyEraRange(this)">
+                        <label>宋代</label>
                     </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-
-        <!-- 年代筛选（放到最底下，暂时不用接入实现） -->
-        <div class="filter-group collapsed" data-group="era">
-            <div class="filter-group-title" onclick="toggleFilterGroup(this)">
-                <span>年代</span>
-                <span class="filter-group-toggle">+</span>
-            </div>
-            <div class="filter-group-content">
-                <ul class="filter-checkbox-list">
-                    {% for era in filter_options.eras|default([]) %}
                     <li class="filter-checkbox-item">
-                        <input type="checkbox" 
-                               id="era-{{ era.value }}" 
-                               name="era" 
-                               value="{{ era.value }}"
-                               {% if era.value in active_filters.get('era', []) %}checked{% endif %}
-                               onchange="applyFilter('era', '{{ era.value }}', this.checked)">
-                        <label for="era-{{ era.value }}">
-                            <span>{{ era.label }}</span>
-                            <span class="filter-count">({{ era.count }})</span>
-                        </label>
+                        <input type="checkbox" name="era_range" value="1368|1644" onchange="applyEraRange(this)">
+                        <label>明代</label>
                     </li>
-                    {% endfor %}
-                    {% if not filter_options.eras or filter_options.eras|length == 0 %}
-                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">年代筛选功能暂未开放</li>
-                    {% endif %}
+                    <li class="filter-checkbox-item">
+                        <input type="checkbox" name="era_range" value="1644|1911" onchange="applyEraRange(this)">
+                        <label>清代</label>
+                    </li>
                 </ul>
+                <div style="font-size: 0.85rem; font-weight: bold; color: #2f4f4f; border-top: 1px solid #eee; padding-top: 10px; margin: 10px 0 5px 0;">西方</div>
+            <ul class="filter-checkbox-list">
+                <li class="filter-checkbox-item">
+                    <input type="checkbox" name="era_range" value="-3000|500" onchange="applyEraRange(this)">
+                    <label>古代 (-3000至500)</label>
+                </li>
+                <li class="filter-checkbox-item">
+                    <input type="checkbox" name="era_range" value="501|1450" onchange="applyEraRange(this)">
+                    <label>中世紀 (501-1450)</label>
+                </li>
+                <li class="filter-checkbox-item">
+                    <input type="checkbox" name="era_range" value="1451|1800" onchange="applyEraRange(this)">
+                    <label>近世 (1451-1800)</label>
+                </li>
+                <li class="filter-checkbox-item">
+                    <input type="checkbox" name="era_range" value="1801|2025" onchange="applyEraRange(this)">
+                    <label>近代/現代 (1801-至今)</label>
+                </li>
+            </ul>
+                <div class="custom-era-input">
+                    <div style="font-size: 0.8rem; margin-bottom: 8px; color: #666;">自定義年份 (西元)</div>
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <input type="number" id="start-year-input" placeholder="始" style="width: 70px; padding: 4px;">
+                        <span>-</span>
+                        <input type="number" id="end-year-input" placeholder="末" style="width: 70px; padding: 4px;">
+                        <button type="button" onclick="applyCustomEra()" style="background: var(--color-primary); color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Go</button>
+                    </div>
+                </div>
             </div>
         </div>
     </aside>
 
-    <!-- 主内容区域 -->
     <main class="search-main">
         <div class="search-header">
-            <h2 class="search-title">搜索"{{ search_term }}"的结果</h2>
+            <h2 class="search-title">搜索 "{{ search_term }}" 的结果</h2>
             <p class="search-result-count">(共找到 {{ artifacts|length }} 件文物)</p>
         </div>
 
-        <!-- 排序栏 -->
         <div class="sort-bar">
-            <div>
-                <span class="sort-label">排序方式:</span>
-                <div class="sort-select">
-                    <select id="sortSelect" onchange="applySort(this.value)">
-                        <option value="relevance" {% if sort_by == 'relevance' %}selected{% endif %}>相关度排序</option>
-                        <option value="era_asc" {% if sort_by == 'era_asc' %}selected{% endif %}>年代从早到晚</option>
-                        <option value="era_desc" {% if sort_by == 'era_desc' %}selected{% endif %}>年代从晚到早</option>
-                        <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>最新入库</option>
-                    </select>
-                </div>
-            </div>
+            <span class="sort-label">排序方式:</span>
+            <select id="sortSelect" onchange="applySort(this.value)" style="padding: 5px; border-radius: 4px;">
+                <option value="relevance" {% if sort_by == 'relevance' %}selected{% endif %}>相关度</option>
+                <option value="era_asc" {% if sort_by == 'era_asc' %}selected{% endif %}>年代從早到晚</option>
+                <option value="era_desc" {% if sort_by == 'era_desc' %}selected{% endif %}>年代從晚到早</option>
+            </select>
         </div>
 
-        <!-- 搜索结果 -->
         {% if artifacts %}
         <div class="search-results-grid">
             {% for item in artifacts %}
             <a href="{{ url_for('detail', artifact_id=item.artifact_id) }}" class="card">
                 <div class="card-image-wrapper">
                     {% if item.local_path %}
-                        <img src="{{ url_for('static', filename=item.local_path) }}" alt="{{ item.title }}" class="card-image">
+                        <img src="{{ url_for('static', filename=item.local_path) }}" class="card-image">
                     {% else %}
-                        <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:#999;">[文物缩略图]</div>
+                        <div style="height:100%; display:flex; align-items:center; justify-content:center; background:#eee; color:#999;">暫無圖片</div>
                     {% endif %}
                 </div>
                 <div class="card-info">
-                    <div class="card-title">{{ item.title or '未命名文物' }}</div>
+                    <div class="card-title">{{ item.title or '未命名' }}</div>
                     <div class="card-date">{{ item.date_text or '年代未知' }}</div>
                     {% if item.culture_name %}
-                        <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">{{ item.culture_name }}</div>
-                    {% endif %}
-                    {% if item.medium %}
-                        <div style="font-size: 0.85rem; color: #666; margin-top: 3px;">材质: {{ item.medium }}</div>
+                        <div style="font-size: 0.8rem; color: #666; margin-top: 5px;">{{ item.culture_name }}</div>
                     {% endif %}
                 </div>
             </a>
@@ -450,92 +384,87 @@
         </div>
         {% else %}
         <div class="no-results">
-            <p class="no-results-title">未找到相关结果</p>
-            <p class="no-results-text">请尝试使用其他关键词搜索或调整筛选条件</p>
-            <div style="margin-top: 30px;">
-                <a href="{{ url_for('homepage') }}" class="btn" style="display: inline-block; padding: 12px 30px; text-decoration: none; color: var(--color-text); border: 1px solid var(--color-text);">返回首页</a>
-            </div>
+            <p class="no-results-title">未找到相關結果</p>
+            <a href="{{ url_for('homepage') }}" style="color: var(--color-primary); text-decoration: none;">返回首頁</a>
         </div>
         {% endif %}
     </main>
 </div>
 
 <script>
-    // 切换筛选分组展开/折叠
     function toggleFilterGroup(element) {
         const group = element.closest('.filter-group');
-        group.classList.toggle('expanded');
+        const isExpanded = group.classList.toggle('expanded');
         group.classList.toggle('collapsed');
-        const toggle = element.querySelector('.filter-group-toggle');
-        if (group.classList.contains('expanded')) {
-            toggle.textContent = '+';
-        } else {
-            toggle.textContent = '+';
-        }
+        element.querySelector('.filter-group-toggle').textContent = isExpanded ? '−' : '+';
     }
 
-    // 应用筛选
     function applyFilter(filterType, filterValue, isChecked) {
         const url = new URL(window.location.href);
-        const paramName = filterType;
-        
-        // 获取当前筛选值
-        let currentValues = url.searchParams.getAll(paramName);
+        let currentValues = url.searchParams.getAll(filterType);
         
         if (isChecked) {
-            // 添加筛选
-            if (!currentValues.includes(filterValue)) {
-                currentValues.push(filterValue);
-            }
+            if (!currentValues.includes(filterValue)) url.searchParams.append(filterType, filterValue);
         } else {
-            // 移除筛选
-            currentValues = currentValues.filter(v => v !== filterValue);
+            url.searchParams.delete(filterType);
+            currentValues.filter(v => v !== filterValue).forEach(v => url.searchParams.append(filterType, v));
         }
-        
-        // 更新URL参数
-        url.searchParams.delete(paramName);
-        currentValues.forEach(v => url.searchParams.append(paramName, v));
-        
-        // 重新加载页面（后续可以改为AJAX）
         window.location.href = url.toString();
     }
 
-    // 移除单个筛选标签
     function removeFilter(filterType, filterValue) {
-        // 查找对应的复选框（通过 value 属性）
-        const checkboxes = document.querySelectorAll(`input[name="${filterType}"]`);
-        for (let checkbox of checkboxes) {
-            if (checkbox.value === filterValue) {
-                checkbox.checked = false;
-                applyFilter(filterType, filterValue, false);
-                break;
-            }
-        }
+        applyFilter(filterType, filterValue, false);
     }
 
-    // 清空所有筛选
+    /**
+ * 修正後的年代勾選邏輯：確保單選，避免分類衝突
+ */
+function applyEraRange(checkbox) {
+    const url = new URL(window.location.href);
+    
+    // 1. 如果選中，取消其他所有 era_range 的勾選
+    if (checkbox.checked) {
+        document.querySelectorAll('input[name="era_range"]').forEach(cb => {
+            if (cb !== checkbox) cb.checked = false;
+        });
+        
+        const [start, end] = checkbox.value.split('|');
+        url.searchParams.set('start_year', start);
+        url.searchParams.set('end_year', end);
+    } else {
+        // 2. 如果取消勾選，移除參數
+        url.searchParams.delete('start_year');
+        url.searchParams.delete('end_year');
+    }
+    
+    window.location.href = url.toString();
+}
+
+    function applyCustomEra() {
+        const start = document.getElementById('start-year-input').value;
+        const end = document.getElementById('end-year-input').value;
+        const url = new URL(window.location.href);
+        if (start) url.searchParams.set('start_year', start);
+        if (end) url.searchParams.set('end_year', end);
+        window.location.href = url.toString();
+    }
+
+    function clearEra() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('start_year');
+        url.searchParams.delete('end_year');
+        window.location.href = url.toString();
+    }
+
     function clearAllFilters() {
         const url = new URL(window.location.href);
-        // 保留搜索关键词和排序
-        const searchTerm = url.searchParams.get('q');
-        const sortBy = url.searchParams.get('sort');
-        
-        // 清空所有筛选参数
-        url.search = '';
-        if (searchTerm) {
-            url.searchParams.set('q', searchTerm);
-        }
-        if (sortBy) {
-            url.searchParams.set('sort', sortBy);
-        }
-        
-        window.location.href = url.toString();
+        const q = url.searchParams.get('q');
+        window.location.href = window.location.pathname + (q ? '?q=' + q : '');
     }
 
-    // 应用排序
-    function applySort(sortValue) {
+    function applySort(val) {
         const url = new URL(window.location.href);
-        url.searchParams.set('sort', sortValue);
+        url.searchParams.set('sort', val);
         window.location.href = url.toString();
     }
 </script>
