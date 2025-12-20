@@ -944,10 +944,15 @@
                         </div>
                     </a>
                     {% if album.album_id != 'guest_default' and is_logged_in %}
-                    <div class="album-actions" onclick="event.stopPropagation();">
-                        <a href="#" class="album-action-icon edit" onclick="event.preventDefault(); event.stopPropagation(); openRenameModal({{ album.album_id }}, {{ album.name|tojson }}); return false;" title="重命名">✎</a>
-                        {% if album.name != '默认收藏夹' %}
-                        <a href="#" class="album-action-icon delete" onclick="event.preventDefault(); event.stopPropagation(); openDeleteModal({{ album.album_id }}, {{ album.name|tojson }}); return false;" title="删除">×</a>
+                    <div class="album-actions">
+                        <button type="button" class="album-action-icon edit" 
+                                onclick="event.preventDefault(); event.stopPropagation(); openManageModal('renameAlbumModal', '{{ album.album_id }}', '{{ album.name }}');" 
+                                title="重命名">✎</button>
+                        
+                        {% if album.name != '默認收藏夾' %}
+                        <button type="button" class="album-action-icon delete" 
+                                onclick="event.preventDefault(); event.stopPropagation(); openManageModal('deleteAlbumModal', '{{ album.album_id }}', '{{ album.name }}');" 
+                                title="刪除">×</button>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -1238,48 +1243,85 @@
     }
     
     // 打开删除图集模态框
-    function openDeleteModal(albumId, albumName) {
-        document.getElementById('delete-album-name').textContent = albumName;
-        document.getElementById('deleteAlbumModal').style.display = 'block';
+    // 打開重命名彈窗
+function openRenameModal(albumId, currentName) {
+    const modal = document.getElementById('renameAlbumModal');
+    const input = document.getElementById('rename-album-input');
+    const confirmBtn = document.getElementById('confirm-rename-btn');
+
+    if (!modal || !input) {
+        console.error("找不到重命名彈窗元件");
+        return;
+    }
+
+    input.value = currentName;
+    modal.style.display = 'block';
+
+    // 重新綁定確認按鈕的點擊事件
+    confirmBtn.onclick = function() {
+        const newName = input.value.trim();
+        if (!newName) return alert("名稱不能為空");
         
-        // 设置确认按钮的点击事件
-        const confirmBtn = document.getElementById('confirm-delete-btn');
-        confirmBtn.onclick = function() {
-            deleteAlbum(albumId, albumName);
-        };
+        fetch('/api/album/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ album_id: albumId, name: newName })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) window.location.reload();
+            else alert(data.message);
+        });
+    };
+}
+
+// 打開刪除彈窗
+function openDeleteModal(albumId, albumName) {
+    const modal = document.getElementById('deleteAlbumModal');
+    const nameDisplay = document.getElementById('delete-album-name');
+    const confirmBtn = document.getElementById('confirm-delete-btn');
+
+    if (!modal || !nameDisplay) return;
+
+    nameDisplay.textContent = albumName;
+    modal.style.display = 'block';
+
+    confirmBtn.onclick = function() {
+        fetch('/api/album/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ album_id: albumId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) window.location.reload();
+            else alert(data.message);
+        });
+    };
+}
+function openManageModal(modalId, albumId, albumName) {
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.error("找不到模態框:", modalId);
+        return;
+    }
+
+    if (modalId === 'renameAlbumModal') {
+        document.getElementById('rename-album-id').value = albumId;
+        document.getElementById('rename-album-input').value = albumName;
+    } else if (modalId === 'deleteAlbumModal') {
+        document.getElementById('delete-album-id').value = albumId;
+        // 確保這裡的 ID 'delete-album-name-display' 在你的 HTML 刪除彈窗裡是存在的
+        const nameDisplay = document.getElementById('delete-album-name-display');
+        if (nameDisplay) nameDisplay.innerText = albumName;
     }
     
-    // 打开重命名图集模态框
-    function openRenameModal(albumId, currentName) {
-        document.getElementById('rename-album-input').value = currentName;
-        document.getElementById('renameAlbumModal').style.display = 'block';
-        
-        // 设置确认按钮的点击事件
-        const confirmBtn = document.getElementById('confirm-rename-btn');
-        confirmBtn.onclick = function() {
-            const newName = document.getElementById('rename-album-input').value.trim();
-            if (!newName || newName === '') {
-                alert('图集名称不能为空');
-                return;
-            }
-            if (newName === currentName) {
-                closeManageModal('renameAlbumModal');
-                return;
-            }
-            renameAlbum(albumId, newName);
-        };
-        
-        // 聚焦输入框
-        setTimeout(() => {
-            document.getElementById('rename-album-input').focus();
-            document.getElementById('rename-album-input').select();
-        }, 100);
-    }
-    
-    // 关闭管理模态框
-    function closeManageModal(modalId) {
-        document.getElementById(modalId).style.display = 'none';
-    }
+    modal.style.display = 'block';
+}
+
+function closeManageModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
     
     // 删除图集
     function deleteAlbum(albumId, albumName) {
@@ -1363,4 +1405,3 @@
     });
 </script>
 {% endblock %}
-

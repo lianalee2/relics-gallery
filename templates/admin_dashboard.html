@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}管理系统 - 遗珍图库{% endblock %}
+{% block title %}管理系統 - 遺珍圖庫{% endblock %}
 
 {% block content %}
 <style>
@@ -16,7 +16,7 @@
         font-family: 'Ma Shan Zheng',"Noto Serif SC", sans-serif;
     }
     
-    /* 顶部标题与导航 */
+    /* 頂部標題與導航 */
     .admin-header {
         display: flex;
         justify-content: space-between;
@@ -70,7 +70,7 @@
         background-color: #e53e3e;
     }
     
-    /* 批量导入面板 - 强化版 */
+    /* 批量導入面板 - 強化版 */
     .import-panel {
         background: linear-gradient(135deg, #ffffff 0%, #f9fbfc 100%);
         border: 2px dashed var(--color-primary);
@@ -108,7 +108,7 @@
         cursor: pointer;
     }
 
-    /* 统计卡片 */
+    /* 統計卡片 */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -155,7 +155,7 @@
         margin-top: 5px;
     }
     
-    /* 两列布局 */
+    /* 兩列佈局 */
     .two-column-grid {
         display: grid;
         grid-template-columns: 1.5fr 1fr;
@@ -188,7 +188,7 @@
         gap: 10px;
     }
     
-    /* 日志表格优化 */
+    /* 日志表格優化 */
     .log-table {
         width: 100%;
         border-collapse: collapse;
@@ -231,11 +231,11 @@
     .navbar .user-menu a, 
     .navbar .user-menu span,
     .navbar a div {
-        color: #9E97B0 !important; /* 强制文字颜色变回紫藤灰 */
-        background-color: transparent !important; /* 确保背景是透明的 */
+        color: #9E97B0 !important; /* 強制文字顏色變回紫藤灰 */
+        background-color: transparent !important; /* 確保背景是透明的 */
     }
 
-/* 如果你的导览按钮文字也变色了，请加这行 */
+/* 如果你的導覽按鈕文字也變色了，請加這行 */
     .nav-link {
         color: #9E97B0 !important;
     }
@@ -244,33 +244,33 @@
 <div class="admin-container">
     <div class="admin-header">
         <div class="admin-title-group">
-            <h1>🛠️ 系统后台管理</h1>
-            <p>欢迎回来，管理员。当前系统运行正常。</p>
+            <h1>🛠️ 系統後台管理</h1>
+            <p>歡迎回來，管理員。當前系統運行正常。</p>
         </div>
         <div class="admin-nav">
-            <a href="{{ url_for('admin_images') }}" class="admin-nav-btn">🖼️ 图像管理</a>
-            <a href="{{ url_for('admin_logs') }}" class="admin-nav-btn">📋 完整日志</a>
+            <a href="{{ url_for('admin_images') }}" class="admin-nav-btn">🖼️ 圖像管理</a>
+            <a href="{{ url_for('admin_logs') }}" class="admin-nav-btn">📋 完整日誌</a>
             <a href="{{ url_for('admin_logout') }}" class="admin-nav-btn logout">安全登出</a>
         </div>
     </div>
 
     <div class="import-panel">
-        <h2>📥 批量数据导入系统</h2>
-        <p>上传 CSV 或 Excel 文件以更新文物元数据库</p>
+        <h2>📥 批量數據導入系統</h2>
+        <p>上傳 CSV 或 Excel 文件以更新文物元數據庫</p>
         
         <form action="{{ url_for('admin_import') }}" method="POST" enctype="multipart/form-data">
             <div class="import-box">
                 <input type="file" name="file" accept=".csv, .xlsx, .xls" class="btn-file-select" required>
                 <select name="import_mode" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-                    <option value="skip">跳过已存在记录</option>
-                    <option value="update">更新已存在记录</option>
+                    <option value="skip">跳過已存在記錄</option>
+                    <option value="update">更新已存在記錄</option>
                 </select>
-                <button type="submit" class="admin-nav-btn">开始批量导入</button>
+                <button type="submit" class="admin-nav-btn">開始批量導入</button>
             </div>
         </form>
         <div style="margin-top: 15px;">
             <a href="{{ url_for('download_import_template') }}" style="color: var(--color-primary); font-size: 0.9rem; text-decoration: none;">
-                📄 下载标准导入模板 (CSV)
+                📄 下載標準導入模板 (CSV)
             </a>
         </div>
     </div>
@@ -280,28 +280,28 @@
             <div class="stat-icon">📦</div>
             <div class="stat-info">
                 <div class="stat-value">{{ stats.total_artifacts }}</div>
-                <div class="stat-label">文物总数</div>
+                <div class="stat-label">文物總數</div>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">📷</div>
             <div class="stat-info">
                 <div class="stat-value">{{ stats.total_images }}</div>
-                <div class="stat-label">图像库存</div>
+                <div class="stat-label">圖像庫存</div>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">🏛️</div>
             <div class="stat-info">
                 <div class="stat-value">{{ stats.total_sources }}</div>
-                <div class="stat-label">来源机构</div>
+                <div class="stat-label">來源機構</div>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">📅</div>
             <div class="stat-info">
                 <div class="stat-value">{{ stats.recent_artifacts }}</div>
-                <div class="stat-label">七日内新增</div>
+                <div class="stat-label">七日內新增</div>
             </div>
         </div>
     </div>
@@ -309,8 +309,8 @@
     <div class="two-column-grid">
         <div class="admin-panel">
             <div class="panel-header">
-                <h2 class="panel-title">📜 系统操作行为日志</h2>
-                <a href="{{ url_for('admin_logs') }}" class="panel-action">查看更多日志 →</a>
+                <h2 class="panel-title">📜 系統操作行為日誌</h2>
+                <a href="{{ url_for('admin_logs') }}" class="panel-action">查看更多日誌 →</a>
             </div>
             
             {% if recent_logs %}
@@ -333,14 +333,14 @@
             </table>
             {% else %}
             <div style="padding: 40px; text-align: center; color: #999;">
-                <p>目前尚无系统操作记录</p>
+                <p>目前尚無系統操作記錄</p>
             </div>
             {% endif %}
         </div>
         
         <div class="admin-panel">
             <div class="panel-header">
-                <h2 class="panel-title">📊 数据来源分布</h2>
+                <h2 class="panel-title">📊 數據來源分佈</h2>
             </div>
             
             {% if source_stats %}
@@ -351,14 +351,14 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <p style="text-align: center; color: #999; padding: 20px;">暂无数据</p>
+                <p style="text-align: center; color: #999; padding: 20px;">暫無數據</p>
             {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-    // 自动消失 Flash 消息的脚本 (可选)
+    // 自動消失 Flash 訊息的腳本 (可選)
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
             const flashes = document.querySelectorAll('.flash-message');

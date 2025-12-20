@@ -4,10 +4,22 @@
 
 {% block content %}
 <div style="margin-bottom:16px;">
-    <a href="{{ url_for('admin_images') }}" style="color: #9E97B0 !important; text-decoration: none; font-weight: bold; display: inline-block;">
-        &larr; 返回圖像管理
+    <a href="#" onclick="goBack(); return false;" style="color: #9E97B0 !important; text-decoration: none; font-weight: bold; display: inline-block;">
+        &larr; 返回
     </a>
 </div>
+
+<script>
+function goBack() {
+    // 檢查是否有歷史紀錄可以返回
+    if (document.referrer !== "") {
+        window.history.back();
+    } else {
+        // 如果是直接打開連結沒有來源，則回到首頁
+        window.location.href = "{{ url_for('homepage') }}";
+    }
+}
+</script>
 
 <div class="detail-container">
     <!-- 左侧：图像区域 -->
@@ -82,7 +94,11 @@
 
         <div class="action-buttons">
             <button class="btn btn-primary" onclick="openAddToAlbumModal()">添加到我的图集</button>
-            <button class="btn btn-outline">下载图像数据</button>
+            <a href="{{ url_for('download_artifact_image', artifact_id=artifact.artifact_id) }}" 
+                class="btn btn-outline" 
+                style="text-decoration: none; border: 1px solid #9E97B0 !important; color: #4A4557 !important; padding: 8px 20px; border-radius: 4px; font-weight: bold; display: inline-block;">
+                下载图像数据
+            </a>
         </div>
 
         <div class="description">
@@ -247,6 +263,25 @@
             transform: translateX(0);
             opacity: 1;
         }
+    }
+    .detail-container, .info-value, p, div {
+        color: #4A4557 !important;
+    }
+
+    .artifact-title {
+        color: #4A4557 !important;
+        border-bottom: 2px solid #9E97B0 !important;
+    }
+
+    /* 標籤（如：朝代、材質）使用紫藤灰 */
+    .info-label {
+        color: #9E97B0 !important;
+        font-weight: bold;
+    }
+
+    /* 返回連結 */
+    .back-link {
+        color: #9E97B0 !important;
     }
 </style>
 
