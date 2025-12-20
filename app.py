@@ -535,136 +535,175 @@ def detail(artifact_id):
             conn.close()
         return render_template('error.html', 
                              error_message=f"数据库查询错误: {str(e)}"), 500
+from flask import send_from_directory
 
+
+@app.route('/download/<int:artifact_id>')
+def download_artifact_image(artifact_id):
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    
+    # 獲取路徑與標題
+    query = "SELECT Local_Path FROM IMAGE_VERSIONS WHERE Artifact_PK = %s LIMIT 1"
+    cursor.execute(query, (artifact_id,))
+    row = cursor.fetchone()
+    
+    cursor.execute("SELECT Title_CN FROM ARTIFACTS WHERE Artifact_PK = %s", (artifact_id,))
+    title_row = cursor.fetchone()
+    title = title_row['Title_CN'] if title_row else f"artifact_{artifact_id}"
+    
+    if row and row['Local_Path']:
+        path_str = row['Local_Path'].replace('\\', '/')
+        filename = os.path.basename(path_str)
+
+        # 強制路徑判斷：解決 images/images 錯誤
+        if 'palace_images' in path_str:
+            sub_folder = 'palace_images'
+        elif 'met_images' in path_str:
+            sub_folder = 'met_images'
+        else:
+            # 如果路徑裡什麼都沒寫，預設一個
+            sub_folder = 'palace_images'
+
+        # 重新構建正確的目錄：static/images/ + 子資料夾
+        directory = os.path.join(app.static_folder, 'images', sub_folder)
+        
+        # 如果用戶已登錄，創建導出記錄
+        if 'user_id' in session:
+            try:
+                # 創建導出記錄
+                cursor.execute("""
+                    INSERT INTO DATA_EXPORTS 
+                    (User_ID, Description, Format, File_Path, Status)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (
+                    session['user_id'],
+                    f'圖片下載: {title}',
+                    'JPG',
+                    f'images/{sub_folder}/{filename}',
+                    '已完成'
+                ))
+                connection.commit()
+                print(f"已為用戶 {session['user_id']} 創建圖片下載記錄")
+            except Exception as e:
+                print(f"創建導出記錄失敗: {e}")
+                connection.rollback()
+        
+        return send_from_directory(
+            directory, 
+            filename, 
+            as_attachment=True, 
+            download_name=f"{title}{os.path.splitext(filename)[1]}"
+        )
+    
+    cursor.close()
+    connection.close()
+    return "找不到該圖像數據", 404
+    
 @app.route('/search')
 def search():
     """
-    搜索页面：根据关键词搜索文物
-    支持在标题、艺术家、文化、部门、年代、描述、材质中搜索
-    支持高级筛选（年代、文化、材质、地区）和排序功能
+    搜索頁面：支持關鍵詞 + 年代高級篩選
     """
     search_term = request.args.get('q', '').strip()
     
-    # 获取筛选参数
-    era_filters = request.args.getlist('era')
+    # 獲取高級篩選參數
+    start_y = request.args.get('start_year', type=int)
+    end_y = request.args.get('end_year', type=int)
+    
+    # 獲取標籤篩選參數
     culture_filters = request.args.getlist('culture')
     material_filters = request.args.getlist('material')
-    region_filters = request.args.getlist('region')
-    
-    # 获取排序参数
     sort_by = request.args.get('sort', 'relevance')
     
-    # 构建激活的筛选字典（用于显示筛选标签）
+    # 構建激活的篩選標籤
     active_filters = {}
-    if era_filters:
-        active_filters['era'] = era_filters
-    if culture_filters:
-        active_filters['culture'] = culture_filters
-    if material_filters:
-        active_filters['material'] = material_filters
-    if region_filters:
-        active_filters['region'] = region_filters
-    
+    if culture_filters: active_filters['culture'] = culture_filters
+    if material_filters: active_filters['material'] = material_filters
+    if start_y is not None or end_y is not None:
+        active_filters['year_range'] = f"{start_y if start_y is not None else ''} 至 {end_y if end_y is not None else ''}"
+
     if not search_term:
-        # 如果没有搜索关键词，重定向到首页
         return redirect(url_for('homepage'))
     
     conn = get_db_connection()
     if conn is None:
-        return render_template('error.html', 
-                             error_message="无法连接到数据库。请检查数据库配置和连接状态。"), 500
+        return render_template('error.html', error_message="數據庫連接失敗"), 500
     
+    # --- 關鍵修正：先初始化 artifacts 為空列表，避免 UnboundLocalError ---
+    artifacts = []
+    filter_options = {'cultures': [], 'materials': []}
+
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # 构建搜索查询
-        query = build_search_query(search_term)
+        # 調用修改後的 build_search_query
+        query, params = build_search_query(search_term, start_y, end_y)
+        
         if query is None:
             cursor.close()
             conn.close()
             return redirect(url_for('homepage'))
         
-        # TODO: 在这里添加筛选条件到查询中
-        # 目前暂时不实现实际的SQL筛选，保留接口
+        # 執行 SQL
+        cursor.execute(query, params)
         
-        # 执行搜索查询，使用10个参数（对应WHERE子句中的10个LIKE条件）
-        search_pattern = f"%{search_term}%"
-        cursor.execute(query, (search_pattern,) * 10)
+        # --- 關鍵修正：將查詢結果直接賦值給 artifacts ---
         artifacts = cursor.fetchall()
         
-        # 规范化图片路径
+        # 規範化路徑
         for artifact in artifacts:
             if artifact.get('local_path'):
                 artifact['local_path'] = normalize_image_path(artifact['local_path'])
         
-        # 获取筛选选项数据（基于原始搜索结果，在筛选前计算）
-        try:
-            filter_options = get_filter_options_from_results(artifacts)
-        except Exception as e:
-            print(f"Error getting filter options: {e}")
-            # 如果获取失败，使用空数据
-            filter_options = {
-                'eras': [],
-                'cultures': [],
-                'materials': [],
-                'regions': []
-            }
+        # 從初步結果中提取側邊欄篩選選項 (用於生成文化/材質的勾選清單)
+        filter_options = get_filter_options_from_results(artifacts)
         
-        # 应用筛选条件（在计算筛选选项之后）
-        if culture_filters or material_filters:
-            filtered_artifacts = []
-            for artifact in artifacts:
-                # 检查文化筛选
-                if culture_filters:
-                    artifact_culture = artifact.get('culture_name', '') or ''
-                    artifact_culture = artifact_culture.strip()
-                    if artifact_culture not in culture_filters:
-                        continue
-                
-                # 检查材质筛选
-                if material_filters:
-                    artifact_material = artifact.get('medium', '') or ''
-                    artifact_material = artifact_material.strip()
-                    if artifact_material not in material_filters:
-                        continue
-                
-                filtered_artifacts.append(artifact)
+        # --- 二次過濾邏輯 ---
+        filtered_results = []
+        for artifact in artifacts:
+            # 文化篩選 (後端二次過濾)
+            if culture_filters:
+                # 確保屬性存在且在篩選名單內
+                cul = (artifact.get('culture_name') or '').strip()
+                if cul not in culture_filters:
+                    continue
             
-            artifacts = filtered_artifacts
+            # 材質篩選
+            if material_filters:
+                mat = (artifact.get('medium') or '').strip()
+                if mat not in material_filters:
+                    continue
+                    
+            filtered_results.append(artifact)
         
-        # 应用排序逻辑
+        artifacts = filtered_results
+
+        # 排序邏輯
         if sort_by == 'era_asc':
-            # 按年代从早到晚排序（start_year 升序）
-            artifacts = sorted(artifacts, key=lambda x: (
-                x.get('start_year') is None,  # None 值放到最后
-                x.get('start_year') or float('inf')  # 按 start_year 升序
-            ))
+            # 年代早到晚
+            artifacts = sorted(artifacts, key=lambda x: (x.get('start_year') is None, x.get('start_year') or 9999))
         elif sort_by == 'era_desc':
-            # 按年代从晚到早排序（start_year 降序）
-            artifacts = sorted(artifacts, key=lambda x: (
-                x.get('start_year') is None,  # None 值放到最后
-                -(x.get('start_year') or float('-inf'))  # 按 start_year 降序
-            ))
+            # 年代晚到早
+            artifacts = sorted(artifacts, key=lambda x: (x.get('start_year') is None, -(x.get('start_year') or -9999)))
         elif sort_by == 'newest':
-            # 按最新入库排序（artifact_id 降序）
+            # 最新入庫
             artifacts = sorted(artifacts, key=lambda x: x.get('artifact_id', 0), reverse=True)
-        # 'relevance' 或其他：保持默认排序
-        
+            
         cursor.close()
         conn.close()
         
-        # 渲染搜索结果页面
         return render_template('search.html', 
                              artifacts=artifacts, 
                              search_term=search_term,
                              active_filters=active_filters,
                              filter_options=filter_options,
                              sort_by=sort_by)
-    except Error as e:
-        if conn:
-            conn.close()
-        return render_template('error.html', 
-                             error_message=f"数据库查询错误: {str(e)}"), 500
+
+    except Exception as e: # 捕捉所有錯誤
+        if conn: conn.close()
+        print(f"DEBUG - 錯誤詳情: {str(e)}") # 在後台打印具體錯誤
+        return render_template('error.html', error_message=f"程序運行錯誤: {str(e)}"), 500
 
 def get_filter_options_from_results(artifacts):
     """
@@ -1395,15 +1434,50 @@ def get_export_records(user_id):
     
     try:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT er.*, a.name as album_name
-            FROM ExportRecords er
-            LEFT JOIN Albums a ON er.album_id = a.album_id
-            WHERE er.user_id = %s
-            ORDER BY er.created_at DESC
-            LIMIT 10
-        """, (user_id,))
+        
+        # 先檢查表結構
+        cursor.execute("SHOW COLUMNS FROM DATA_EXPORTS")
+        columns = [col['Field'] for col in cursor.fetchall()]
+        print(f"DATA_EXPORTS 表的列: {columns}")
+        
+        # 根據實際列名構建查詢
+        if 'Description' in columns:
+            query = """
+                SELECT 
+                    Export_PK,
+                    Description,
+                    Format,
+                    File_Path,
+                    Status,
+                    DATE_FORMAT(Created_At, '%%Y-%%m-%%d %%H:%%i') as created_at,
+                    Album_ID
+                FROM DATA_EXPORTS 
+                WHERE User_ID = %s
+                ORDER BY Created_At DESC
+                LIMIT 10
+            """
+        else:
+            # 如果沒有Description列，使用其他列
+            query = """
+                SELECT 
+                    Export_PK,
+                    '數據導出' as Description,
+                    Format,
+                    File_Path,
+                    Status,
+                    DATE_FORMAT(Created_At, '%%Y-%%m-%%d %%H:%%i') as created_at,
+                    Album_ID
+                FROM DATA_EXPORTS 
+                WHERE User_ID = %s
+                ORDER BY Created_At DESC
+                LIMIT 10
+            """
+        
+        cursor.execute(query, (user_id,))
         records = cursor.fetchall()
+        
+        print(f"用戶 {user_id} 的導出記錄: {records}")
+        
         cursor.close()
         conn.close()
         return records
@@ -1772,102 +1846,53 @@ def add_to_album_api():
         traceback.print_exc()
         return jsonify({'success': False, 'message': f'添加失败: {str(e)}'}), 500
 
-@app.route('/api/album/delete', methods=['POST'])
-def delete_album_api():
-    """删除图集"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'success': False, 'message': '请先登录'}), 401
-    
-    data = request.get_json()
-    album_id = data.get('album_id')
-    
-    if not album_id:
-        return jsonify({'success': False, 'message': '图集ID不能为空'}), 400
-    
-    try:
-        album_id = int(album_id)
-    except (ValueError, TypeError):
-        return jsonify({'success': False, 'message': '图集ID格式错误'}), 400
-    
-    # 验证图集属于当前用户
-    albums = get_user_albums(user_id)
-    album = next((a for a in albums if a['album_id'] == album_id), None)
-    
-    if not album:
-        return jsonify({'success': False, 'message': '图集不存在或无权限'}), 403
-    
-    # 不能删除默认收藏夹
-    if album['name'] == '默认收藏夹':
-        return jsonify({'success': False, 'message': '不能删除默认收藏夹'}), 400
-    
-    # 删除图集（外键约束会自动删除相关的Collections记录）
-    conn = get_db_connection()
-    if conn is None:
-        return jsonify({'success': False, 'message': '数据库连接失败'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Albums WHERE album_id = %s AND user_id = %s", (album_id, user_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'success': True, 'message': '图集已删除'})
-    except Error as e:
-        print(f"Error deleting album: {e}")
-        if conn:
-            conn.rollback()
-            conn.close()
-        return jsonify({'success': False, 'message': '删除失败'}), 500
 
+
+# 修改路由，去掉路徑中的 <int:album_id>，改由 JSON 接收
+# --- 重命名圖集 ---
 @app.route('/api/album/rename', methods=['POST'])
-def rename_album_api():
-    """重命名图集"""
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'success': False, 'message': '请先登录'}), 401
+def rename_album():
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "請先登入"})
     
-    data = request.get_json()
-    album_id = data.get('album_id')
-    new_name = data.get('name', '').strip()
-    
-    if not album_id:
-        return jsonify({'success': False, 'message': '图集ID不能为空'}), 400
-    
-    if not new_name:
-        return jsonify({'success': False, 'message': '图集名称不能为空'}), 400
+    data = request.json
+    album_id = data.get('id')
+    new_name = data.get('name')
     
     try:
-        album_id = int(album_id)
-    except (ValueError, TypeError):
-        return jsonify({'success': False, 'message': '图集ID格式错误'}), 400
-    
-    # 验证图集属于当前用户
-    albums = get_user_albums(user_id)
-    album = next((a for a in albums if a['album_id'] == album_id), None)
-    
-    if not album:
-        return jsonify({'success': False, 'message': '图集不存在或无权限'}), 403
-    
-    # 更新图集名称
-    conn = get_db_connection()
-    if conn is None:
-        return jsonify({'success': False, 'message': '数据库连接失败'}), 500
-    
-    try:
-        cursor = conn.cursor()
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        # 確保只能修改自己的圖集
         cursor.execute("UPDATE Albums SET name = %s WHERE album_id = %s AND user_id = %s", 
-                      (new_name, album_id, user_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'success': True, 'message': '图集已重命名'})
-    except Error as e:
-        print(f"Error renaming album: {e}")
-        if conn:
-            conn.rollback()
-            conn.close()
-        return jsonify({'success': False, 'message': '重命名失败'}), 500
+                       (new_name, album_id, session['user_id']))
+        connection.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+    finally:
+        if connection: connection.close()
+
+# --- 刪除圖集 ---
+@app.route('/api/album/delete', methods=['POST'])
+def delete_album():
+    if 'user_id' not in session:
+        return jsonify({"success": False, "message": "請先登入"})
+    
+    data = request.json
+    album_id = data.get('id')
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        # 刪除圖集 (Collections 表中的關聯會因為外鍵 ON DELETE CASCADE 自動刪除)
+        cursor.execute("DELETE FROM Albums WHERE album_id = %s AND user_id = %s", 
+                       (album_id, session['user_id']))
+        connection.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+    finally:
+        if connection: connection.close()
 
 @app.route('/api/album/remove_artifact', methods=['POST'])
 def remove_artifact_from_album_api():
@@ -1923,6 +1948,9 @@ def remove_artifact_from_album_api():
 
 # ========== 用户中心路由 ==========
 
+# 1. 用戶中心：顯示「所有圖集」的列表
+# --- 1. 用戶中心 (列表頁) ---
+# app.py 中的路由
 @app.route('/user')
 @app.route('/user_center')
 def user_center():
@@ -2035,6 +2063,7 @@ def user_center():
                              is_logged_in=False,
                              albums=guest_albums)
 
+
 @app.route('/album/<int:album_id>')
 def album_detail(album_id):
     """显示图集详情（已登录用户）"""
@@ -2053,6 +2082,162 @@ def album_detail(album_id):
     artifacts = get_album_artifacts(album_id)
     
     return render_template('album_detail.html', album=album, artifacts=artifacts)
+
+import io
+import pandas as pd
+from flask import send_file
+
+def init_export_table():
+    """初始化导出记录表"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            # 創建完整的DATA_EXPORTS表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS DATA_EXPORTS (
+                    Export_PK INT AUTO_INCREMENT PRIMARY KEY,
+                    User_ID INT NOT NULL,
+                    Album_ID INT,
+                    Description VARCHAR(500),
+                    Format VARCHAR(50),
+                    File_Path VARCHAR(500),
+                    Status VARCHAR(50) DEFAULT '處理中',
+                    Created_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (User_ID) REFERENCES Users(user_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+            conn.commit()
+            
+            # 確保所有列都存在
+            columns_to_add = [
+                ('Description', 'VARCHAR(500)'),
+                ('Format', 'VARCHAR(50)'),
+                ('File_Path', 'VARCHAR(500)'),
+                ('Status', 'VARCHAR(50) DEFAULT "處理中"')
+            ]
+            
+            for col_name, col_type in columns_to_add:
+                try:
+                    cursor.execute(f"ALTER TABLE DATA_EXPORTS ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                except Exception as e:
+                    print(f"列 {col_name} 已存在或添加失敗: {e}")
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print("DATA_EXPORTS 表已就緒")
+        except Exception as e:
+            print(f"初始化DATA_EXPORTS表失敗: {e}")
+
+# 在主程序启动时调用
+if __name__ == '__main__':
+    init_db()
+    init_export_table()  # 添加这一行
+    port = int(os.getenv('PORT', 5001))
+    print(f"系統啟動中... 訪問地址: http://127.0.0.1:{port}")
+    app.run(debug=True, host='0.0.0.0', port=port)
+
+import io
+import os
+import pandas as pd
+from flask import send_file
+
+@app.route('/export_metadata')
+def export_metadata():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # 動態抓取該用戶圖集中所有文物的「所有欄位」
+        query = """
+            SELECT a.*, al.name as '所屬圖集'
+            FROM ARTIFACTS a
+            JOIN Collections c ON a.Artifact_PK = c.artifact_id
+            JOIN Albums al ON c.album_id = al.album_id
+            WHERE al.user_id = %s
+        """
+        cursor.execute(query, (user_id,))
+        results = cursor.fetchall()
+        
+        if not results:
+            flash("目前沒有數據可導出", "info")
+            return redirect(url_for('user_center'))
+            
+        df = pd.DataFrame(results)
+        filename = f"metadata_{datetime.now().strftime('%Y%m%d%H%M')}.csv"
+        export_dir = os.path.join(app.static_folder, 'exports')
+        os.makedirs(export_dir, exist_ok=True)
+        filepath = os.path.join(export_dir, filename)
+        df.to_csv(filepath, index=False, encoding='utf-8-sig') # 解決 Excel 亂碼
+        
+        # 寫入紀錄 (確保欄位名稱跟資料庫一致，如果不確定，可以用 MySQL 檢查)
+        cursor.execute("""
+            INSERT INTO DATA_EXPORTS (User_ID, Description, Format, File_Path, Status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, f"導出文物詳情({len(results)}筆)", 'CSV', f"exports/{filename}", '已完成'))
+        
+        connection.commit()
+        flash("導出成功", "success")
+    except Exception as e:
+        print(f"導出錯誤: {e}")
+        flash("導出失敗", "error")
+    finally:
+        if connection: connection.close()
+    return redirect(url_for('user_center'))
+
+@app.route('/api/export/download/<int:export_id>')
+def download_export(export_id):
+    """下载导出文件"""
+    if 'user_id' not in session:
+        flash('请先登录', 'error')
+        return redirect(url_for('user_center'))
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT File_Path, User_ID 
+            FROM DATA_EXPORTS 
+            WHERE Export_PK = %s
+        """, (export_id,))
+        record = cursor.fetchone()
+        
+        if not record:
+            return "找不到该导出记录", 404
+        
+        if record['User_ID'] != session['user_id']:
+            return "无权访问此文件", 403
+        
+        file_path = record['File_Path']
+        if not file_path:
+            return "文件不存在", 404
+        
+        full_path = os.path.join(app.static_folder, file_path)
+        if not os.path.exists(full_path):
+            return "文件已不存在", 404
+        
+        filename = os.path.basename(file_path)
+        return send_file(
+            full_path,
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"下载错误: {e}")
+        return f"系统错误: {str(e)}", 500
+    finally:
+        if connection and connection.is_connected():
+            cursor.close()
+            connection.close()
+
+
 
 
 @app.route('/album/guest')
@@ -2356,94 +2541,22 @@ def admin_import():
             # 读取文件
             try:
                 if filename.endswith('.csv'):
-                    # 尝试多种编码
-                    try:
-                        df = pd.read_csv(file, encoding='utf-8-sig')  # 支持Excel导出的CSV（BOM）
-                    except:
-                        try:
-                            df = pd.read_csv(file, encoding='utf-8')
-                        except:
-                            df = pd.read_csv(file, encoding='gbk')  # 中文Windows默认编码
+                    df = pd.read_csv(file, encoding='utf-8')
                 else:
                     df = pd.read_excel(file)
                 
-                # 标准化列名：去除前后空格
-                df.columns = df.columns.str.strip()
-                
-                # 列名映射（支持常见的列名变体）
-                column_mapping = {
-                    '来源ID': 'Source_ID',
-                    '来源机构ID': 'Source_ID',
-                    '原始编号': 'Original_ID',
-                    '文物编号': 'Original_ID',
-                    '中文标题': 'Title_CN',
-                    '标题': 'Title_CN',
-                    '英文标题': 'Title_EN',
-                    '中文描述': 'Description_CN',
-                    '描述': 'Description_CN',
-                    '分类': 'Classification',
-                    '材质': 'Material',
-                    '中文年代': 'Date_CN',
-                    '年代': 'Date_CN',
-                    '英文年代': 'Date_EN',
-                    '起始年份': 'Start_Year',
-                    '结束年份': 'End_Year',
-                    '地理': 'Geography',
-                    '地区': 'Geography',
-                    '文化': 'Culture',
-                    '艺术家': 'Artist',
-                    '作者': 'Artist',
-                    '版权说明': 'Credit_Line',
-                    '版权': 'Credit_Line',
-                    '页面链接': 'Page_Link',
-                    '链接': 'Page_Link',
-                    '尺寸类型': 'Size_Type',
-                    '尺寸值': 'Size_Value',
-                    '尺寸数值': 'Size_Value',
-                    '尺寸单位': 'Size_Unit',
-                    '图像链接': 'Image_Link',
-                    '图片链接': 'Image_Link',
-                    '本地路径': 'Local_Path',
-                    '本地图片路径': 'Local_Path',
-                    '图像路径': 'Local_Path',
-                    '版本类型': 'Version_Type'
-                }
-                
-                # 应用列名映射
-                df.rename(columns=column_mapping, inplace=True)
-                
-                # 再次标准化列名（确保一致）
-                df.columns = [col.strip() for col in df.columns]
-                
-                # 验证必需列（不区分大小写）
+                # 验证必需列
                 required_columns = ['Title_CN', 'Source_ID', 'Original_ID']
-                df_columns_lower = [col.lower() for col in df.columns]
-                missing_columns = []
-                for req_col in required_columns:
-                    if req_col not in df.columns and req_col.lower() not in df_columns_lower:
-                        missing_columns.append(req_col)
-                
+                missing_columns = [col for col in required_columns if col not in df.columns]
                 if missing_columns:
-                    flash(f'缺少必需列: {", ".join(missing_columns)}。请确保CSV包含以下列：Source_ID, Original_ID, Title_CN', 'error')
+                    flash(f'缺少必需列: {", ".join(missing_columns)}', 'error')
                     return redirect(request.url)
                 
                 # 导入数据
                 import_mode = request.form.get('import_mode', 'skip')  # skip/update
                 result = import_artifacts_from_dataframe(df, import_mode)
                 
-                # 构建反馈消息
-                success_msg = f'导入完成：新增 {result["inserted"]} 条，更新 {result["updated"]} 条，跳过 {result["skipped"]} 条'
-                if result.get('failed', 0) > 0:
-                    success_msg += f'，失败 {result["failed"]} 条'
-                    flash(success_msg, 'warning')
-                else:
-                    flash(success_msg, 'success')
-                
-                # 如果有错误，提示查看日志
-                if result.get('errors'):
-                    error_summary = f'批量导入中有 {len(result["errors"])} 条记录失败，详细信息请查看系统操作日志'
-                    flash(error_summary, 'error')
-                
+                flash(f'导入成功：新增 {result["inserted"]} 条，更新 {result["updated"]} 条，跳过 {result["skipped"]} 条', 'success')
                 return redirect(url_for('admin_dashboard'))
                 
             except Exception as e:
@@ -2466,160 +2579,44 @@ def log_system_action(action, table, status, desc):
     conn.close()
 
 def import_artifacts_from_dataframe(df, import_mode='skip'):
-    """
-    从DataFrame导入文物数据
-    使用存储过程 sp_import_artifact_metadata 进行批量导入
-    """
+    """从DataFrame导入文物数据"""
     conn = get_db_connection()
     if conn is None:
         raise Exception("无法连接到数据库")
     
-    result = {'inserted': 0, 'updated': 0, 'skipped': 0, 'failed': 0, 'errors': []}
+    result = {'inserted': 0, 'updated': 0, 'skipped': 0, 'errors': []}
     
     try:
-        cursor = conn.cursor()
-        user_id = session.get('username', 'admin') if session.get('is_admin') else 'admin'
+        cursor = conn.cursor(dictionary=True)
         
         for index, row in df.iterrows():
             try:
-                # 准备参数，处理NaN值
-                def safe_get(key, default=None):
-                    if key not in row.index:
-                        return default
-                    val = row[key]
-                    # 处理NaN、空字符串、None
-                    if pd.isna(val) or val == '' or val is None:
-                        return default
-                    # 处理数值类型
-                    if key in ['Source_ID', 'Start_Year', 'End_Year']:
-                        try:
-                            return int(float(val)) if val is not None else default
-                        except (ValueError, TypeError):
-                            return default
-                    if key == 'Size_Value':
-                        try:
-                            return float(val) if val is not None else default
-                        except (ValueError, TypeError):
-                            return default
-                    # 转换为字符串并去除空格
-                    return str(val).strip() if val is not None else default
-                
-                # 验证必需字段
-                source_id = safe_get('Source_ID')
-                original_id = safe_get('Original_ID')
-                title_cn = safe_get('Title_CN')
-                
-                if source_id is None:
-                    raise ValueError('Source_ID 不能为空')
-                if not original_id:
-                    raise ValueError('Original_ID 不能为空')
-                if not title_cn:
-                    raise ValueError('Title_CN 不能为空')
-                
-                # 调用存储过程（OUT参数用@变量接收）
-                # 参数顺序必须与存储过程定义完全一致
+                # 检查是否已存在（根据 Source_ID + Original_ID）
                 cursor.execute("""
-                    CALL sp_import_artifact_metadata(
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s,
-                        @p_artifact_id, @p_result_status, @p_result_message
-                    )
-                """, (
-                    source_id,  # p_source_id
-                    original_id,  # p_original_id
-                    title_cn,  # p_title_cn
-                    safe_get('Title_EN'),  # p_title_en
-                    safe_get('Description_CN'),  # p_description_cn
-                    safe_get('Classification'),  # p_classification
-                    safe_get('Material'),  # p_material
-                    safe_get('Date_CN'),  # p_date_cn
-                    safe_get('Date_EN'),  # p_date_en
-                    safe_get('Start_Year'),  # p_start_year
-                    safe_get('End_Year'),  # p_end_year
-                    safe_get('Geography'),  # p_geography
-                    safe_get('Culture'),  # p_culture
-                    safe_get('Artist'),  # p_artist
-                    safe_get('Credit_Line'),  # p_credit_line
-                    safe_get('Page_Link'),  # p_page_link
-                    safe_get('Size_Type'),  # p_size_type
-                    safe_get('Size_Value'),  # p_size_value
-                    safe_get('Size_Unit'),  # p_size_unit
-                    safe_get('Image_Link'),  # p_image_link
-                    safe_get('Local_Path'),  # p_local_path
-                    safe_get('Version_Type', 'Original'),  # p_version_type
-                    user_id,  # p_user_id
-                    import_mode  # p_import_mode
-                ))
+                    SELECT Artifact_PK FROM ARTIFACTS 
+                    WHERE Source_ID = %s AND Original_ID = %s
+                """, (row['Source_ID'], row['Original_ID']))
                 
-                # 获取OUT参数
-                cursor.execute("SELECT @p_artifact_id as artifact_id, @p_result_status as status, @p_result_message as message")
-                out_result = cursor.fetchone()
+                existing = cursor.fetchone()
                 
-                if out_result:
-                    status = out_result.get('status') or out_result[1] if isinstance(out_result, tuple) else None
-                    if status == 'Inserted':
-                        result['inserted'] += 1
-                    elif status == 'Updated':
+                if existing:
+                    if import_mode == 'update':
+                        # 更新模式
+                        update_artifact(cursor, existing['Artifact_PK'], row)
                         result['updated'] += 1
-                    elif status == 'Skipped':
-                        result['skipped'] += 1
                     else:
-                        result['failed'] += 1
-                        error_msg = out_result.get('message') or (out_result[2] if isinstance(out_result, tuple) and len(out_result) > 2 else '未知错误')
-                        result['errors'].append(f"行 {index + 2}: {error_msg}")
-                        # 记录失败日志
-                        cursor.execute("""
-                            CALL sp_log_import_error(%s, %s, %s, %s)
-                        """, (
-                            safe_get('Title_CN', '未知'),
-                            error_msg,
-                            user_id,
-                            index + 2
-                        ))
+                        # 跳过模式
+                        result['skipped'] += 1
+                else:
+                    # 插入新记录
+                    insert_artifact(cursor, row)
+                    result['inserted'] += 1
                 
                 conn.commit()
                 
-            except mysql.connector.Error as e:
-                conn.rollback()
-                result['failed'] += 1
-                error_msg = f"行 {index + 2}: {str(e)}"
-                result['errors'].append(error_msg)
-                # 记录失败日志
-                try:
-                    cursor.execute("""
-                        CALL sp_log_import_error(%s, %s, %s, %s)
-                    """, (
-                        safe_get('Title_CN', '未知') if 'safe_get' in locals() else '未知',
-                        str(e),
-                        user_id,
-                        index + 2
-                    ))
-                    conn.commit()
-                except:
-                    pass
             except Exception as e:
+                result['errors'].append(f"行 {index + 2}: {str(e)}")
                 conn.rollback()
-                result['failed'] += 1
-                error_msg = f"行 {index + 2}: {str(e)}"
-                result['errors'].append(error_msg)
-                # 记录失败日志
-                try:
-                    def safe_get_local(key, default=None):
-                        val = row.get(key, default) if isinstance(row, dict) else getattr(row, key, default) if hasattr(row, key) else default
-                        return None if pd.isna(val) or val == '' else val
-                    
-                    cursor.execute("""
-                        CALL sp_log_import_error(%s, %s, %s, %s)
-                    """, (
-                        safe_get_local('Title_CN', '未知'),
-                        str(e),
-                        user_id,
-                        index + 2
-                    ))
-                    conn.commit()
-                except:
-                    pass
         
         cursor.close()
         conn.close()
@@ -2814,9 +2811,9 @@ def admin_replace_image(version_id):
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # 获取原图像信息（包括Image_Link，触发器需要）
+        # 获取原图像信息
         cursor.execute("""
-            SELECT Local_Path, Artifact_PK, Image_Link
+            SELECT Local_Path, Artifact_PK 
             FROM IMAGE_VERSIONS 
             WHERE Version_PK = %s
         """, (version_id,))
@@ -2826,7 +2823,6 @@ def admin_replace_image(version_id):
             return jsonify({'success': False, 'message': '图像记录不存在'}), 404
         
         old_path = old_image['Local_Path']
-        old_image_link = old_image.get('Image_Link')
         artifact_id = old_image['Artifact_PK']
         
         # 保存新文件（使用原文件名）
@@ -2838,45 +2834,33 @@ def admin_replace_image(version_id):
         os.makedirs(file_dir, exist_ok=True)
         
         # 保存文件
-        file_path = os.path.join('static', new_path)
-        file.save(file_path)
+        file.save(os.path.join('static', new_path))
         
         # 获取文件大小
-        file_size_kb = round(os.path.getsize(file_path) / 1024, 2)
-        
-        # 获取当前用户标识
-        current_user = session.get('username', 'admin') if session.get('is_admin') else 'admin'
+        file_size_kb = os.path.getsize(os.path.join('static', new_path)) / 1024
         
         # 更新数据库记录
-        # 注意：触发器 image_replace_log 会自动记录替换日志（包括原文件路径、替换时间等）
-        # 触发器会自动设置 Last_Processed_Time = NOW()
         cursor.execute("""
             UPDATE IMAGE_VERSIONS SET
-                Local_Path = %s,
-                File_Size_KB = %s
-                -- Last_Processed_Time 由触发器自动设置为 NOW()
+                File_Size_KB = %s,
+                Last_Processed_Time = NOW()
             WHERE Version_PK = %s
-        """, (new_path, file_size_kb, version_id))
+        """, (file_size_kb, version_id))
         
-        conn.commit()
-        
-        # 更新最后一条日志记录，添加应用用户信息（触发器已创建日志，我们增强它）
-        # 触发器使用USER()函数，但我们需要应用层的用户名
+        # 记录替换日志
         cursor.execute("""
-            UPDATE LOGS SET
-                User_ID = %s,
-                Description = CONCAT(Description, ' | 操作人: ', %s)
-            WHERE Log_PK = (
-                SELECT * FROM (
-                    SELECT Log_PK FROM LOGS
-                    WHERE Artifact_PK = %s 
-                    AND Table_Name = 'IMAGE_VERSIONS' 
-                    AND Operation_Type = 'IMAGE_REPLACE'
-                    ORDER BY Log_Time DESC
-                    LIMIT 1
-                ) AS temp
-            )
-        """, (current_user, current_user, artifact_id))
+            INSERT INTO LOGS (
+                Artifact_PK, Table_Name, Operation_Type, 
+                User_ID, Status, Description
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            artifact_id,
+            'IMAGE_VERSIONS',
+            'IMAGE_REPLACE',
+            session.get('username', 'admin'),
+            'Success',
+            f'图像文件替换: {old_path} -> {new_path} (版本ID: {version_id})'
+        ))
         
         conn.commit()
         cursor.close()
@@ -2893,7 +2877,6 @@ def admin_replace_image(version_id):
 # ========== 日志查看功能 ==========
 
 @app.route('/admin/logs')
-@app.route('/admin/log')
 @admin_required
 def admin_logs():
     """日志查看页面"""
@@ -2985,30 +2968,27 @@ def download_import_template():
     import io
     from flask import send_file
     
-    # 创建模板数据（包含所有必需和可选字段）
+    # 创建模板数据
     template_data = {
-        'Source_ID': [1],  # 必需：来源机构ID（整数，需要在SOURCES表中存在）
-        'Original_ID': ['EXAMPLE-001'],  # 必需：原始编号
-        'Title_CN': ['示例文物'],  # 必需：中文标题
-        'Title_EN': ['Example Artifact'],  # 可选：英文标题
-        'Description_CN': ['这是一个示例描述'],  # 可选：中文描述
-        'Classification': ['青铜器'],  # 可选：分类
-        'Material': ['青铜'],  # 可选：材质
-        'Date_CN': ['商代晚期'],  # 可选：中文年代
-        'Date_EN': ['Late Shang Dynasty'],  # 可选：英文年代
-        'Start_Year': [-1300],  # 可选：起始年份（负数表示公元前）
-        'End_Year': [-1046],  # 可选：结束年份
-        'Geography': ['河南安阳'],  # 可选：地理
-        'Culture': ['商文化'],  # 可选：文化
-        'Artist': ['佚名'],  # 可选：艺术家
-        'Credit_Line': ['某博物馆藏'],  # 可选：版权说明
-        'Page_Link': ['https://example.com'],  # 可选：页面链接
-        'Size_Type': ['高'],  # 可选：尺寸类型（如：高、宽、直径）
-        'Size_Value': [25.5],  # 可选：尺寸数值
-        'Size_Unit': ['cm'],  # 可选：尺寸单位（如：cm、mm、in）
-        'Image_Link': ['https://example.com/image.jpg'],  # 可选：图像网络链接
-        'Local_Path': ['images/met_images/example.jpg'],  # 可选：本地图像路径（相对于static目录）
-        'Version_Type': ['Original']  # 可选：图像版本类型（默认：Original）
+        'Source_ID': [1],
+        'Original_ID': ['EXAMPLE-001'],
+        'Title_CN': ['示例文物'],
+        'Title_EN': ['Example Artifact'],
+        'Description_CN': ['这是一个示例描述'],
+        'Classification': ['青铜器'],
+        'Material': ['青铜'],
+        'Date_CN': ['商代晚期'],
+        'Date_EN': ['Late Shang Dynasty'],
+        'Start_Year': [-1300],
+        'End_Year': [-1046],
+        'Geography': ['河南安阳'],
+        'Culture': ['商文化'],
+        'Artist': ['佚名'],
+        'Credit_Line': ['某博物馆藏'],
+        'Page_Link': ['https://example.com'],
+        'Size_Type': ['高'],
+        'Size_Value': [25.5],
+        'Size_Unit': ['cm']
     }
     
     df = pd.DataFrame(template_data)
