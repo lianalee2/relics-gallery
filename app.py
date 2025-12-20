@@ -9,7 +9,7 @@ import pandas as pd
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from functools import wraps
-
+from flask import session, redirect, url_for, flash, request
 # 確保這兩個在你的 app.py 中
 from urllib.parse import quote, unquote
 
@@ -233,6 +233,40 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
+    
+def check_and_update_tables():
+    """檢查並更新資料庫表結構"""
+    conn = get_db_connection()
+    if not conn: return
+    
+    try:
+        cursor = conn.cursor()
+        # 定義需要添加的列
+        columns_to_check = [
+            ("Description", "VARCHAR(500)"),
+            ("Format", "VARCHAR(50)"),
+            ("File_Path", "VARCHAR(500)"),
+            ("Status", "VARCHAR(50) DEFAULT '處理中'")
+        ]
+        
+        for col_name, col_type in columns_to_check:
+            try:
+                # 核心修正：移除 IF NOT EXISTS
+                cursor.execute(f"ALTER TABLE DATA_EXPORTS ADD COLUMN {col_name} {col_type}")
+                print(f"列 {col_name} 添加成功")
+            except Error as e:
+                # 1060 是「列已存在」的代碼，這時我們選擇忽略它
+                if e.errno == 1060:
+                    pass 
+                else:
+                    print(f"列 {col_name} 失敗: {e}")
+        conn.commit()
+    except Error as e:
+        print(f"資料庫更新失敗: {e}")
+    finally:
+        if conn:
+            conn.close()
+
 def init_db():
     """初始化資料庫，自動建立必要的表格"""
     conn = get_db_connection()
@@ -300,6 +334,347 @@ def normalize_image_path(path):
         
     return f"images/{filename}"
 
+# ========== 管理员认证路由 ==========
+
+# ========== 管理员认证装饰器 ==========
+
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')  # 建议使用环境变量
+
+def admin_required(f):
+    """管理员权限验证装饰器"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            flash('请先进行管理员登录', 'error')
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    """管理员仪表板 - 主页"""
+    conn = get_db_connection()
+    if conn is None:
+        return render_template('error.html', 
+                             error_message="无法连接到数据库"), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 获取统计信息
+        stats = {}
+        
+        # 文物总数
+        cursor.execute("SELECT COUNT(*) as count FROM ARTIFACTS")
+        stats['total_artifacts'] = cursor.fetchone()['count']
+        
+        # 图片总数
+        cursor.execute("SELECT COUNT(*) as count FROM IMAGE_VERSIONS")
+        stats['total_images'] = cursor.fetchone()['count']
+        
+        # 来源机构数
+        cursor.execute("SELECT COUNT(*) as count FROM SOURCES")
+        stats['total_sources'] = cursor.fetchone()['count']
+        
+        # 最近7天新增文物
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM LOGS 
+            WHERE Table_Name = 'ARTIFACTS' 
+            AND Operation_Type = 'INSERT' 
+            AND Log_Time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        """)
+        result = cursor.fetchone()
+        stats['recent_artifacts'] = result['count'] if result else 0
+        
+        # 最近操作日志（前10条）
+        cursor.execute("""
+            SELECT Log_PK, Log_Time, Table_Name, Operation_Type, 
+                   User_ID, Status, Description
+            FROM LOGS
+            ORDER BY Log_Time DESC
+            LIMIT 10
+        """)
+        recent_logs = cursor.fetchall()
+        
+        # 按来源机构统计文物数量
+        cursor.execute("""
+            SELECT s.Museum_Name_CN, COUNT(a.Artifact_PK) as count
+            FROM SOURCES s
+            LEFT JOIN ARTIFACTS a ON s.Source_ID = a.Source_ID
+            GROUP BY s.Source_ID
+            ORDER BY count DESC
+        """)
+        source_stats = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_dashboard.html', 
+                             stats=stats,
+                             recent_logs=recent_logs,
+                             source_stats=source_stats)
+    except Error as e:
+        if conn:
+            conn.close()
+        return render_template('error.html', 
+                             error_message=f"数据库查询错误: {str(e)}"), 500
+    
+@app.route('/admin/import', methods=['GET', 'POST'])
+@admin_required
+def admin_import():
+    """元数据导入页面"""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('没有上传文件', 'error')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('未选择文件', 'error')
+            return redirect(request.url)
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            
+            # 读取文件
+            try:
+                if filename.endswith('.csv'):
+                    df = pd.read_csv(file, encoding='utf-8')
+                else:
+                    df = pd.read_excel(file)
+                
+                # 验证必需列
+                required_columns = ['Title_CN', 'Source_ID', 'Original_ID']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    flash(f'缺少必需列: {", ".join(missing_columns)}', 'error')
+                    return redirect(request.url)
+                
+                # 导入数据
+                import_mode = request.form.get('import_mode', 'skip')  # skip/update
+                result = import_artifacts_from_dataframe(df, import_mode)
+                
+                flash(f'导入成功：新增 {result["inserted"]} 条，更新 {result["updated"]} 条，跳过 {result["skipped"]} 条', 'success')
+                return redirect(url_for('admin_dashboard'))
+                
+            except Exception as e:
+                flash(f'导入失败: {str(e)}', 'error')
+                return redirect(request.url)
+        else:
+            flash('不支持的文件格式，请上传 CSV 或 Excel 文件', 'error')
+            return redirect(request.url)
+    
+    return render_template('admin_import.html')
+
+# ========== 图像管理功能 ==========
+
+@app.route('/admin/images')
+@admin_required
+def admin_images():
+    """图像管理页面"""
+    conn = get_db_connection()
+    if conn is None:
+        return render_template('error.html', 
+                             error_message="无法连接到数据库"), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 获取所有图像记录
+        page = request.args.get('page', 1, type=int)
+        per_page = 50
+        offset = (page - 1) * per_page
+        
+        cursor.execute("""
+            SELECT 
+                iv.Version_PK,
+                iv.Artifact_PK,
+                a.Title_CN,
+                iv.Version_Type,
+                iv.Local_Path,
+                iv.File_Size_KB,
+                iv.Last_Processed_Time
+            FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE iv.Local_Path IS NOT NULL AND iv.Local_Path != ''
+            ORDER BY iv.Last_Processed_Time DESC
+            LIMIT %s OFFSET %s
+        """, (per_page, offset))
+        
+        images = cursor.fetchall()
+        
+        # 关键：规范化所有图片路径
+        for image in images:
+            if image.get('Local_Path'):
+                image['Local_Path'] = normalize_image_path(image['Local_Path'])
+        
+        # 获取总数
+        cursor.execute("SELECT COUNT(*) as count FROM IMAGE_VERSIONS WHERE Local_Path IS NOT NULL AND Local_Path != ''")
+        total = cursor.fetchone()['count']
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_images.html', 
+                             images=images,
+                             page=page,
+                             per_page=per_page,
+                             total=total)
+    except Error as e:
+        if conn:
+            conn.close()
+        return render_template('error.html', 
+                             error_message=f"数据库查询错误: {str(e)}"), 500
+
+# ========== 日志查看功能 ==========
+
+@app.route('/admin/logs')
+@admin_required
+def admin_logs():
+    """日志查看页面"""
+    conn = get_db_connection()
+    if conn is None:
+        return render_template('error.html', 
+                             error_message="无法连接到数据库"), 500
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 获取筛选参数
+        operation_type = request.args.get('operation_type', '')
+        table_name = request.args.get('table_name', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        # 构建查询
+        query = """
+            SELECT 
+                l.Log_PK,
+                l.Log_Time,
+                l.Artifact_PK,
+                a.Title_CN as artifact_title,
+                l.Table_Name,
+                l.Operation_Type,
+                l.User_ID,
+                l.Status,
+                l.Description
+            FROM LOGS l
+            LEFT JOIN ARTIFACTS a ON l.Artifact_PK = a.Artifact_PK
+            WHERE 1=1
+        """
+        params = []
+        
+        if operation_type:
+            query += " AND l.Operation_Type = %s"
+            params.append(operation_type)
+        
+        if table_name:
+            query += " AND l.Table_Name = %s"
+            params.append(table_name)
+        
+        if date_from:
+            query += " AND DATE(l.Log_Time) >= %s"
+            params.append(date_from)
+        
+        if date_to:
+            query += " AND DATE(l.Log_Time) <= %s"
+            params.append(date_to)
+        
+        query += " ORDER BY l.Log_Time DESC LIMIT 1000"
+        
+        cursor.execute(query, params)
+        logs = cursor.fetchall()
+        
+        # 获取筛选选项
+        cursor.execute("SELECT DISTINCT Operation_Type FROM LOGS ORDER BY Operation_Type")
+        operation_types = [row['Operation_Type'] for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT DISTINCT Table_Name FROM LOGS ORDER BY Table_Name")
+        table_names = [row['Table_Name'] for row in cursor.fetchall()]
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('admin_logs.html', 
+                             logs=logs,
+                             operation_types=operation_types,
+                             table_names=table_names,
+                             filters={
+                                 'operation_type': operation_type,
+                                 'table_name': table_name,
+                                 'date_from': date_from,
+                                 'date_to': date_to
+                             })
+    except Error as e:
+        if conn:
+            conn.close()
+        return render_template('error.html', 
+                             error_message=f"数据库查询错误: {str(e)}"), 500
+
+@app.route('/admin')
+def admin_portal():
+    """独立的后台管理入口"""
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """管理员登录页面"""
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        
+        if password == ADMIN_PASSWORD:
+            session['is_admin'] = True
+            session['admin_login_time'] = datetime.now().isoformat()
+            flash('管理员登录成功', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('管理员密码错误', 'error')
+    
+    return render_template('admin_login.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    """管理员登出"""
+    session.pop('is_admin', None)
+    session.pop('admin_login_time', None)
+    flash('已退出管理员模式', 'info')
+    return redirect(url_for('homepage'))
+
+@app.route('/index')
+def index():
+    """首页重定向"""
+    return redirect(url_for('homepage'))
+
+@app.route('/support')
+def support():
+    """平台支持页面 - 主菜单"""
+    return render_template('support.html')
+
+@app.route('/support/guide')
+def support_guide():
+    """平台支持 - 使用指南"""
+    return render_template('support_guide.html')
+
+@app.route('/support/contact')
+def support_contact():
+    """平台支持 - 联系与反馈"""
+    return render_template('support_contact.html')
+
+@app.route('/support/contact', methods=['POST'])
+def support_contact_submit():
+    """处理反馈提交"""
+    feedback_type = request.form.get('feedback_type', '')
+    email = request.form.get('email', '')
+    description = request.form.get('description', '')
+    
+    # TODO: 这里可以添加实际的反馈处理逻辑（如发送邮件、保存到数据库等）
+    flash(f'感谢您的反馈！我们会尽快处理您的{feedback_type}请求。', 'success')
+    return redirect(url_for('support'))
+
 @app.route('/')
 def homepage():
     """
@@ -311,7 +686,8 @@ def homepage():
         return render_template('homepage.html', 
                              random_images=[], 
                              culture_images=[],
-                             geography_images=[])
+                             geography_images=[],
+                             era_images=[img['local_path'] for img in era_images if img.get('local_path')])  # 添加空列表
     
     try:
         cursor = conn.cursor(dictionary=True)
@@ -357,35 +733,57 @@ def homepage():
         """
         cursor.execute(geography_query)
         geography_images = cursor.fetchall()
+
+        # 获取年代浏览的代表性图片
+        era_query = """
+            SELECT DISTINCT iv.Local_Path as local_path
+            FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE iv.Local_Path IS NOT NULL AND iv.Local_Path != ''
+            ORDER BY RAND()
+            LIMIT 6
+        """
+        cursor.execute(era_query)
+        era_images = cursor.fetchall()
         
         # 规范化图片路径
-        for img in random_images:
-            if img.get('local_path'):
-                img['local_path'] = normalize_image_path(img['local_path'])
+        image_sets = [
+            ("random_images", random_images),
+            ("culture_images", culture_images),
+            ("geography_images", geography_images),
+            ("era_images", era_images)
+        ]
         
-        for img in culture_images:
-            if img.get('local_path'):
-                img['local_path'] = normalize_image_path(img['local_path'])
-        
-        for img in geography_images:
-            if img.get('local_path'):
-                img['local_path'] = normalize_image_path(img['local_path'])
+        normalized_results = {}
+        for name, images in image_sets:
+            normalized_paths = []
+            for img in images:
+                if img.get('local_path'):
+                    normalized_path = normalize_image_path(img['local_path'])
+                    if normalized_path:
+                        normalized_paths.append(normalized_path)
+            normalized_results[name] = normalized_paths
         
         cursor.close()
         conn.close()
         
         return render_template('homepage.html', 
-                             random_images=[img['local_path'] for img in random_images if img.get('local_path')],
-                             culture_images=[img['local_path'] for img in culture_images if img.get('local_path')],
-                             geography_images=[img['local_path'] for img in geography_images if img.get('local_path')])
+                             random_images=normalized_results['random_images'],
+                             culture_images=normalized_results['culture_images'],
+                             geography_images=normalized_results['geography_images'],
+                             era_images=normalized_results['era_images'])  # 添加 era_images
+        
     except Error as e:
         if conn:
             conn.close()
         # 即使查询失败，也显示页面
+        print(f"Homepage error: {e}")
         return render_template('homepage.html', 
                              random_images=[], 
                              culture_images=[],
-                             geography_images=[])
+                             geography_images=[],
+                             era_images=[])  # 添加空列表
+   
 
 @app.route('/explore')
 @app.route('/random')
@@ -1718,6 +2116,22 @@ def logout():
     flash('已退出登录', 'info')
     return redirect(url_for('user_center'))
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('請先登入', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 在 app.py 中添加 user_collections 路由
+@app.route('/user/collections')
+@login_required
+def user_collections():
+    # 顯示用戶的收藏頁面
+    return render_template('user_collections.html')
+
 # ========== 图集相关API路由 ==========
 
 @app.route('/api/albums', methods=['GET'])
@@ -1946,7 +2360,61 @@ def remove_artifact_from_album_api():
             conn.close()
         return jsonify({'success': False, 'message': '删除失败'}), 500
 
+@app.route('/album/guest')
+def guest_album_detail():
+    """显示访客默认收藏夹"""
+    guest_collections = session.get('guest_collections', [])
+    
+    if not guest_collections:
+        # 如果没有收藏，返回空列表
+        artifacts = []
+    else:
+        # 获取文物信息
+        conn = get_db_connection()
+        if conn is None:
+            artifacts = []
+        else:
+            try:
+                cursor = conn.cursor(dictionary=True)
+                placeholders = ','.join(['%s'] * len(guest_collections))
+                query = f"""
+                    SELECT 
+                        a.Artifact_PK AS artifact_id,
+                        a.Title_CN AS title,
+                        a.Date_CN AS date_text,
+                        ANY_VALUE(iv.Local_Path) AS local_path
+                    FROM ARTIFACTS a
+                    LEFT JOIN IMAGE_VERSIONS iv ON a.Artifact_PK = iv.Artifact_PK
+                    WHERE a.Artifact_PK IN ({placeholders})
+                    GROUP BY a.Artifact_PK
+                    ORDER BY a.Artifact_PK DESC
+                """
+                cursor.execute(query, guest_collections)
+                artifacts = cursor.fetchall()
+                
+                # 规范化图片路径
+                for artifact in artifacts:
+                    if artifact.get('local_path'):
+                        artifact['local_path'] = normalize_image_path(artifact['local_path'])
+                
+                cursor.close()
+                conn.close()
+            except Error as e:
+                print(f"Error getting guest artifacts: {e}")
+                artifacts = []
+    
+    album = {
+        'album_id': 'guest_default',
+        'name': '默认收藏夹',
+        'is_public': True,
+        'item_count': len(artifacts)
+    }
+    
+    return render_template('album_detail.html', album=album, artifacts=artifacts)
+
 # ========== 用户中心路由 ==========
+
+
 
 # 1. 用戶中心：顯示「所有圖集」的列表
 # --- 1. 用戶中心 (列表頁) ---
@@ -2118,10 +2586,14 @@ def init_export_table():
             ]
             
             for col_name, col_type in columns_to_add:
+                # 原本可能報錯的地方，請改為這樣：
                 try:
-                    cursor.execute(f"ALTER TABLE DATA_EXPORTS ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
-                except Exception as e:
-                    print(f"列 {col_name} 已存在或添加失敗: {e}")
+                    cursor.execute("ALTER TABLE DATA_EXPORTS ADD COLUMN Description VARCHAR(500)")
+                except Error as e:
+                    if e.errno == 1060: # 1060 代表欄位已存在，這是正常的
+                        pass
+                else:
+                    print(f"資料庫更新出錯: {e}")
             
             conn.commit()
             cursor.close()
@@ -2134,6 +2606,9 @@ def init_export_table():
 if __name__ == '__main__':
     init_db()
     init_export_table()  # 添加这一行
+    print("正在檢查資料庫結構...")
+    init_user_tables()         # 執行你原本的初始化
+    check_and_update_tables()
     port = int(os.getenv('PORT', 5001))
     print(f"系統啟動中... 訪問地址: http://127.0.0.1:{port}")
     app.run(debug=True, host='0.0.0.0', port=port)
@@ -2240,84 +2715,6 @@ def download_export(export_id):
 
 
 
-@app.route('/album/guest')
-def guest_album_detail():
-    """显示访客默认收藏夹"""
-    guest_collections = session.get('guest_collections', [])
-    
-    if not guest_collections:
-        # 如果没有收藏，返回空列表
-        artifacts = []
-    else:
-        # 获取文物信息
-        conn = get_db_connection()
-        if conn is None:
-            artifacts = []
-        else:
-            try:
-                cursor = conn.cursor(dictionary=True)
-                placeholders = ','.join(['%s'] * len(guest_collections))
-                query = f"""
-                    SELECT 
-                        a.Artifact_PK AS artifact_id,
-                        a.Title_CN AS title,
-                        a.Date_CN AS date_text,
-                        ANY_VALUE(iv.Local_Path) AS local_path
-                    FROM ARTIFACTS a
-                    LEFT JOIN IMAGE_VERSIONS iv ON a.Artifact_PK = iv.Artifact_PK
-                    WHERE a.Artifact_PK IN ({placeholders})
-                    GROUP BY a.Artifact_PK
-                    ORDER BY a.Artifact_PK DESC
-                """
-                cursor.execute(query, guest_collections)
-                artifacts = cursor.fetchall()
-                
-                # 规范化图片路径
-                for artifact in artifacts:
-                    if artifact.get('local_path'):
-                        artifact['local_path'] = normalize_image_path(artifact['local_path'])
-                
-                cursor.close()
-                conn.close()
-            except Error as e:
-                print(f"Error getting guest artifacts: {e}")
-                artifacts = []
-    
-    album = {
-        'album_id': 'guest_default',
-        'name': '默认收藏夹',
-        'is_public': True,
-        'item_count': len(artifacts)
-    }
-    
-    return render_template('album_detail.html', album=album, artifacts=artifacts)
-
-@app.route('/support')
-def support():
-    """平台支持页面 - 主菜单"""
-    return render_template('support.html')
-
-@app.route('/support/guide')
-def support_guide():
-    """平台支持 - 使用指南"""
-    return render_template('support_guide.html')
-
-@app.route('/support/contact')
-def support_contact():
-    """平台支持 - 联系与反馈"""
-    return render_template('support_contact.html')
-
-@app.route('/support/contact', methods=['POST'])
-def support_contact_submit():
-    """处理反馈提交"""
-    feedback_type = request.form.get('feedback_type', '')
-    email = request.form.get('email', '')
-    description = request.form.get('description', '')
-    
-    # TODO: 这里可以添加实际的反馈处理逻辑（如发送邮件、保存到数据库等）
-    flash(f'感谢您的反馈！我们会尽快处理您的{feedback_type}请求。', 'success')
-    return redirect(url_for('support'))
-
 
 
 @app.route('/user/collections')
@@ -2401,118 +2798,6 @@ def user_collections():
                          page_view='collections')
 
 
-# ========== 管理员认证装饰器 ==========
-
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')  # 建议使用环境变量
-
-def admin_required(f):
-    """管理员权限验证装饰器"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('is_admin'):
-            flash('请先进行管理员登录', 'error')
-            return redirect(url_for('admin_login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# ========== 管理员认证路由 ==========
-
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    """管理员登录页面"""
-    if request.method == 'POST':
-        password = request.form.get('password', '')
-        
-        if password == ADMIN_PASSWORD:
-            session['is_admin'] = True
-            session['admin_login_time'] = datetime.now().isoformat()
-            flash('管理员登录成功', 'success')
-            return redirect(url_for('admin_dashboard'))
-        else:
-            flash('管理员密码错误', 'error')
-            return redirect(url_for('admin_login'))
-    
-    return render_template('admin_login.html')
-
-@app.route('/admin/logout')
-def admin_logout():
-    """管理员登出"""
-    session.pop('is_admin', None)
-    session.pop('admin_login_time', None)
-    flash('已退出管理员模式', 'info')
-    return redirect(url_for('homepage'))
-
-# ========== 管理员仪表板 ==========
-
-@app.route('/admin/dashboard')
-@admin_required
-def admin_dashboard():
-    """管理员仪表板 - 主页"""
-    conn = get_db_connection()
-    if conn is None:
-        return render_template('error.html', 
-                             error_message="无法连接到数据库"), 500
-    
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        # 获取统计信息
-        stats = {}
-        
-        # 文物总数
-        cursor.execute("SELECT COUNT(*) as count FROM ARTIFACTS")
-        stats['total_artifacts'] = cursor.fetchone()['count']
-        
-        # 图片总数
-        cursor.execute("SELECT COUNT(*) as count FROM IMAGE_VERSIONS")
-        stats['total_images'] = cursor.fetchone()['count']
-        
-        # 来源机构数
-        cursor.execute("SELECT COUNT(*) as count FROM SOURCES")
-        stats['total_sources'] = cursor.fetchone()['count']
-        
-        # 最近7天新增文物
-        cursor.execute("""
-            SELECT COUNT(*) as count FROM LOGS 
-            WHERE Table_Name = 'ARTIFACTS' 
-            AND Operation_Type = 'INSERT' 
-            AND Log_Time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        """)
-        result = cursor.fetchone()
-        stats['recent_artifacts'] = result['count'] if result else 0
-        
-        # 最近操作日志（前10条）
-        cursor.execute("""
-            SELECT Log_PK, Log_Time, Table_Name, Operation_Type, 
-                   User_ID, Status, Description
-            FROM LOGS
-            ORDER BY Log_Time DESC
-            LIMIT 10
-        """)
-        recent_logs = cursor.fetchall()
-        
-        # 按来源机构统计文物数量
-        cursor.execute("""
-            SELECT s.Museum_Name_CN, COUNT(a.Artifact_PK) as count
-            FROM SOURCES s
-            LEFT JOIN ARTIFACTS a ON s.Source_ID = a.Source_ID
-            GROUP BY s.Source_ID
-            ORDER BY count DESC
-        """)
-        source_stats = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('admin_dashboard.html', 
-                             stats=stats,
-                             recent_logs=recent_logs,
-                             source_stats=source_stats)
-    except Error as e:
-        if conn:
-            conn.close()
-        return render_template('error.html', 
-                             error_message=f"数据库查询错误: {str(e)}"), 500
 
 # ========== 元数据导入功能 ==========
 
@@ -2521,52 +2806,7 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/admin/import', methods=['GET', 'POST'])
-@admin_required
-def admin_import():
-    """元数据导入页面"""
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('没有上传文件', 'error')
-            return redirect(request.url)
-        
-        file = request.files['file']
-        if file.filename == '':
-            flash('未选择文件', 'error')
-            return redirect(request.url)
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            
-            # 读取文件
-            try:
-                if filename.endswith('.csv'):
-                    df = pd.read_csv(file, encoding='utf-8')
-                else:
-                    df = pd.read_excel(file)
-                
-                # 验证必需列
-                required_columns = ['Title_CN', 'Source_ID', 'Original_ID']
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                if missing_columns:
-                    flash(f'缺少必需列: {", ".join(missing_columns)}', 'error')
-                    return redirect(request.url)
-                
-                # 导入数据
-                import_mode = request.form.get('import_mode', 'skip')  # skip/update
-                result = import_artifacts_from_dataframe(df, import_mode)
-                
-                flash(f'导入成功：新增 {result["inserted"]} 条，更新 {result["updated"]} 条，跳过 {result["skipped"]} 条', 'success')
-                return redirect(url_for('admin_dashboard'))
-                
-            except Exception as e:
-                flash(f'导入失败: {str(e)}', 'error')
-                return redirect(request.url)
-        else:
-            flash('不支持的文件格式，请上传 CSV 或 Excel 文件', 'error')
-            return redirect(request.url)
-    
-    return render_template('admin_import.html')
+
 def log_system_action(action, table, status, desc):
     """輔助函數：將後台行為寫入 LOGS 表"""
     conn = get_db_connection()
@@ -2739,59 +2979,7 @@ def update_artifact(cursor, artifact_id, row):
         f'通过批量导入更新文物: {row.get("Title_CN")}'
     ))
 
-# ========== 图像管理功能 ==========
 
-@app.route('/admin/images')
-@admin_required
-def admin_images():
-    """图像管理页面"""
-    conn = get_db_connection()
-    if conn is None:
-        return render_template('error.html', 
-                             error_message="无法连接到数据库"), 500
-    
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        # 获取所有图像记录
-        page = request.args.get('page', 1, type=int)
-        per_page = 50
-        offset = (page - 1) * per_page
-        
-        cursor.execute("""
-            SELECT 
-                iv.Version_PK,
-                iv.Artifact_PK,
-                a.Title_CN,
-                iv.Version_Type,
-                iv.Local_Path,
-                iv.File_Size_KB,
-                iv.Last_Processed_Time
-            FROM IMAGE_VERSIONS iv
-            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
-            ORDER BY iv.Last_Processed_Time DESC
-            LIMIT %s OFFSET %s
-        """, (per_page, offset))
-        
-        images = cursor.fetchall()
-        
-        # 获取总数
-        cursor.execute("SELECT COUNT(*) as count FROM IMAGE_VERSIONS")
-        total = cursor.fetchone()['count']
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('admin_images.html', 
-                             images=images,
-                             page=page,
-                             per_page=per_page,
-                             total=total)
-    except Error as e:
-        if conn:
-            conn.close()
-        return render_template('error.html', 
-                             error_message=f"数据库查询错误: {str(e)}"), 500
 
 @app.route('/admin/image/replace/<int:version_id>', methods=['POST'])
 @admin_required
@@ -2874,90 +3062,7 @@ def admin_replace_image(version_id):
             conn.close()
         return jsonify({'success': False, 'message': f'替换失败: {str(e)}'}), 500
 
-# ========== 日志查看功能 ==========
 
-@app.route('/admin/logs')
-@admin_required
-def admin_logs():
-    """日志查看页面"""
-    conn = get_db_connection()
-    if conn is None:
-        return render_template('error.html', 
-                             error_message="无法连接到数据库"), 500
-    
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        # 获取筛选参数
-        operation_type = request.args.get('operation_type', '')
-        table_name = request.args.get('table_name', '')
-        date_from = request.args.get('date_from', '')
-        date_to = request.args.get('date_to', '')
-        
-        # 构建查询
-        query = """
-            SELECT 
-                l.Log_PK,
-                l.Log_Time,
-                l.Artifact_PK,
-                a.Title_CN as artifact_title,
-                l.Table_Name,
-                l.Operation_Type,
-                l.User_ID,
-                l.Status,
-                l.Description
-            FROM LOGS l
-            LEFT JOIN ARTIFACTS a ON l.Artifact_PK = a.Artifact_PK
-            WHERE 1=1
-        """
-        params = []
-        
-        if operation_type:
-            query += " AND l.Operation_Type = %s"
-            params.append(operation_type)
-        
-        if table_name:
-            query += " AND l.Table_Name = %s"
-            params.append(table_name)
-        
-        if date_from:
-            query += " AND DATE(l.Log_Time) >= %s"
-            params.append(date_from)
-        
-        if date_to:
-            query += " AND DATE(l.Log_Time) <= %s"
-            params.append(date_to)
-        
-        query += " ORDER BY l.Log_Time DESC LIMIT 1000"
-        
-        cursor.execute(query, params)
-        logs = cursor.fetchall()
-        
-        # 获取筛选选项
-        cursor.execute("SELECT DISTINCT Operation_Type FROM LOGS ORDER BY Operation_Type")
-        operation_types = [row['Operation_Type'] for row in cursor.fetchall()]
-        
-        cursor.execute("SELECT DISTINCT Table_Name FROM LOGS ORDER BY Table_Name")
-        table_names = [row['Table_Name'] for row in cursor.fetchall()]
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('admin_logs.html', 
-                             logs=logs,
-                             operation_types=operation_types,
-                             table_names=table_names,
-                             filters={
-                                 'operation_type': operation_type,
-                                 'table_name': table_name,
-                                 'date_from': date_from,
-                                 'date_to': date_to
-                             })
-    except Error as e:
-        if conn:
-            conn.close()
-        return render_template('error.html', 
-                             error_message=f"数据库查询错误: {str(e)}"), 500
 
 # ========== API: 获取导入模板 ==========
 
@@ -3004,8 +3109,9 @@ def download_import_template():
         as_attachment=True,
         download_name='artifact_import_template.csv'
     )  
-                  
 
+
+# 如果你的同學還有提到「關於我們」或「聯絡我們」，也可以在這邊預留
 if __name__ == '__main__':
     # 1. 先執行資料庫初始化（建表）
     init_db()  
