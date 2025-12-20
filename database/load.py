@@ -7,11 +7,11 @@ import re
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'password123',  # 请根据实际情况修改
+    'password': 'leeanna',  # 请根据实际情况修改
     'database': 'project'
 }
 
-EXCEL_FILE = 'data.xlsx'  # 你的Excel文件名
+EXCEL_FILE = 'database/data.xlsx'  # 你的Excel文件名
 DEFAULT_MUSEUM_CODE = 'MET'
 DEFAULT_MUSEUM_NAME = '大都会艺术博物馆'
 # ===========================================
@@ -68,13 +68,47 @@ def import_data():
             source_id = None
             if result:
                 source_id = result[0]
+                print(f"找到现有Source_ID: {source_id}")
             else:
                 insert_source_sql = "INSERT INTO SOURCES (Museum_Code, Museum_Name_CN) VALUES (%s, %s)"
                 cursor.execute(insert_source_sql, (DEFAULT_MUSEUM_CODE, DEFAULT_MUSEUM_NAME))
                 source_id = cursor.lastrowid
                 conn.commit()
+                print(f"创建新Source_ID: {source_id}")
             
-            print(f"当前 Source_ID: {source_id}")
+            # 3.5 删除该Source_ID相关的旧数据 (防止重复导入，但不影响其他来源的数据)
+            print(f"正在删除Source_ID={source_id} (MET) 的旧数据...")
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            
+            # 先删除关联表的数据
+            cursor.execute("""
+                DELETE iv FROM IMAGE_VERSIONS iv
+                INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+                WHERE a.Source_ID = %s
+            """, (source_id,))
+            deleted_images = cursor.rowcount
+            
+            cursor.execute("""
+                DELETE p FROM PROPERTIES p
+                INNER JOIN ARTIFACTS a ON p.Artifact_PK = a.Artifact_PK
+                WHERE a.Source_ID = %s
+            """, (source_id,))
+            deleted_props = cursor.rowcount
+            
+            cursor.execute("""
+                DELETE d FROM DIMENSIONS d
+                INNER JOIN ARTIFACTS a ON d.Artifact_PK = a.Artifact_PK
+                WHERE a.Source_ID = %s
+            """, (source_id,))
+            deleted_dims = cursor.rowcount
+            
+            # 最后删除主表数据
+            cursor.execute("DELETE FROM ARTIFACTS WHERE Source_ID = %s", (source_id,))
+            deleted_artifacts = cursor.rowcount
+            
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            conn.commit()
+            print(f"已删除 {deleted_artifacts} 条文物记录，{deleted_images} 条图像，{deleted_props} 条属性，{deleted_dims} 条尺寸记录。")
 
             # 4. 遍历每一行数据进行插入
             count = 0

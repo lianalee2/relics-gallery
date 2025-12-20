@@ -10,7 +10,7 @@ DATA_FILE = 'database_npm/内容清单_with_sizes.xlsx'
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD'), 
+    'password': os.getenv('DB_PASSWORD', 'leeanna'), 
     'database': os.getenv('DB_NAME', 'project'),
     'autocommit': False # <--- 关键修改：手动控制事务
 }
@@ -113,33 +113,57 @@ def import_data():
         df_cleaned = df.dropna(subset=['title_cn', 'original_id', 'museum_name_cn'])
         print(f"信息: 准备导入 {len(df_cleaned)} 条清洗后的数据。")
         
-        # 2. 强制清空旧数据 (防止外键冲突和重复导入)
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-        cursor.execute("TRUNCATE TABLE IMAGE_VERSIONS")
-        cursor.execute("TRUNCATE TABLE PROPERTIES")
-        cursor.execute("TRUNCATE TABLE DIMENSIONS")
-        cursor.execute("TRUNCATE TABLE ARTIFACTS")
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-        print("信息: 旧数据已清空。")
-        conn.commit() 
-
-        
-        # 3. 插入数据源 (SOURCES)
+        # 2. 先获取或创建Source_ID
         MUSEUM_NAME = df_cleaned['museum_name_cn'].iloc[0] if not df_cleaned.empty else "国立故宫博物院"
         MUSEUM_CODE = df_cleaned['museum_code'].iloc[0] if not df_cleaned.empty and pd.notna(df_cleaned['museum_code'].iloc[0]) else 'NPM'
         
-        cursor.execute("SELECT Source_ID FROM SOURCES WHERE Museum_Name_CN = %s", (MUSEUM_NAME,))
+        cursor.execute("SELECT Source_ID FROM SOURCES WHERE Museum_Code = %s OR Museum_Name_CN = %s", (MUSEUM_CODE, MUSEUM_NAME))
         result = cursor.fetchone()
         if result:
             source_id = result[0]
+            print(f"信息: 找到现有Source_ID: {source_id}")
         else:
             cursor.execute(
                 "INSERT INTO SOURCES (Museum_Code, Museum_Name_CN) VALUES (%s, %s)",
                 (MUSEUM_CODE, MUSEUM_NAME)
             )
             source_id = cursor.lastrowid
+            conn.commit()
+            print(f"信息: 创建新Source_ID: {source_id}")
+        
+        # 3. 只删除该Source_ID相关的旧数据 (防止重复导入，但不影响其他来源的数据)
+        print(f"信息: 正在删除Source_ID={source_id} (NPM) 的旧数据...")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        
+        # 先删除关联表的数据
+        cursor.execute("""
+            DELETE iv FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE a.Source_ID = %s
+        """, (source_id,))
+        deleted_images = cursor.rowcount
+        
+        cursor.execute("""
+            DELETE p FROM PROPERTIES p
+            INNER JOIN ARTIFACTS a ON p.Artifact_PK = a.Artifact_PK
+            WHERE a.Source_ID = %s
+        """, (source_id,))
+        deleted_props = cursor.rowcount
+        
+        cursor.execute("""
+            DELETE d FROM DIMENSIONS d
+            INNER JOIN ARTIFACTS a ON d.Artifact_PK = a.Artifact_PK
+            WHERE a.Source_ID = %s
+        """, (source_id,))
+        deleted_dims = cursor.rowcount
+        
+        # 最后删除主表数据
+        cursor.execute("DELETE FROM ARTIFACTS WHERE Source_ID = %s", (source_id,))
+        deleted_artifacts = cursor.rowcount
+        
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
         conn.commit()
-        print(f"信息: 數據源處理完成，Source_ID: {source_id}")
+        print(f"信息: 已删除 {deleted_artifacts} 条文物记录，{deleted_images} 条图像，{deleted_props} 条属性，{deleted_dims} 条尺寸记录。")
 
         
         # 4. 逐行处理并导入数据到多表 (手动提交事务)

@@ -63,3 +63,4 @@ Thumbs.db
 
 # 忽略 met_images 文件夹及其所有内容
 static/images/met_images/
+static/images/palace_images/

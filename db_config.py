@@ -1,6 +1,6 @@
 """
 数据库结构配置文件
-根据 project_database.sql 中的新结构配置
+根据 sql/project_database.sql 中的新结构配置
 数据库名称: project
 """
 

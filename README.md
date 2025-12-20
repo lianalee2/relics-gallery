@@ -64,7 +64,9 @@ pip install -r requirements.txt
 
 登录 MySQL，创建一个名为 project 的数据库。
 
-运行 project_database.sql 脚本以创建表结构和触发器。
+运行 `sql/project_database.sql` 脚本以创建表结构和触发器。
+
+然后运行 `sql/database_procedures_and_triggers.sql` 创建存储过程和触发器。
 
 配置数据库连接：
 
@@ -94,18 +96,38 @@ relics-gallery/
 ├── app.py                 # Flask 应用入口与路由逻辑
 ├── db_config.py           # 数据库表、字段映射配置
 ├── query_builder.py       # SQL 动态构建工具
-├── project_database.sql   # 数据库初始化脚本
 ├── requirements.txt       # 项目依赖
+├── README.md              # 项目主文档
+├── docs/                  # 文档目录
+│   ├── 后台管理功能使用指南.md
+│   ├── 批量导入功能说明.md
+│   ├── 安装说明.md
+│   └── ...（其他文档）
+├── sql/                   # SQL脚本目录
+│   ├── project_database.sql              # 数据库初始化脚本
+│   ├── database_procedures_and_triggers.sql  # 存储过程和触发器
+│   └── database_migration_add_end_year.sql   # 数据库迁移脚本
+├── database/              # MET数据导入
+│   ├── data.xlsx
+│   └── load.py
+├── database_npm/          # NPM数据导入
+│   ├── 内容清单_with_sizes.xlsx
+│   └── data_importer_multi_table.py
 ├── static/                # 静态资源 (CSS, JS, Images)
 │   ├── css/style.css      # 全局样式定义
-│   ├── images/            # 界面 UI 图片
-│   └── met_images/        # 文物数据图片
+│   ├── images/            # 图像资源
+│   │   ├── met_images/    # 大都会博物馆图像
+│   │   └── palace_images/ # 故宫博物院图像
+│   └── js/script.js       # JavaScript文件
 └── templates/             # HTML 模板文件
     ├── homepage.html      # 沉浸式首页
     ├── user_center.html   # 用户中心与仪表盘
     ├── search.html        # 搜索与筛选页
+    ├── admin_*.html       # 后台管理模板
     └── ...
 ```
+
+详细的项目结构说明请查看 `PROJECT_STRUCTURE.md` 文件。
 # 许可证
 
 本项目仅供学习与交流使用。

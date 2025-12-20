@@ -1,47 +1,365 @@
 {% extends 'base.html' %}
 
-{% block title %}數據導入 - 管理員後台{% endblock %}
+
+{% block title %}数据导入 - 管理员后台{% endblock %}
 
 {% block content %}
-<div class="admin-container" style="max-width: 800px; margin: 50px auto; padding: 0 20px;">
-    <div style="margin-bottom: 20px;">
-        <a href="{{ url_for('admin_dashboard') }}" style="text-decoration: none; color: var(--color-primary);">← 返回儀表板</a>
-    </div>
+<style>
+    .admin-container {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+    
+    .back-link {
+        color: var(--color-primary);
+        text-decoration: none;
+        margin-bottom: 20px;
+        display: inline-block;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+    
+    .import-panel {
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 40px;
+    }
+    
+    .import-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    
+    .import-title {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--color-text);
+        margin-bottom: 10px;
+    }
+    
+    .import-subtitle {
+        color: #666;
+        font-size: 0.95rem;
+    }
+    
+    .upload-area {
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 60px 40px;
+        text-align: center;
+        margin-bottom: 30px;
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    
+    .upload-area:hover {
+        border-color: var(--color-primary);
+        background-color: #fafafa;
+    }
+    
+    .upload-area.dragover {
+        border-color: var(--color-accent);
+        background-color: #fff9e6;
+    }
+    
+    .upload-icon {
+        font-size: 4rem;
+        color: var(--color-primary);
+        margin-bottom: 20px;
+    }
+    
+    .upload-text {
+        font-size: 1.1rem;
+        color: var(--color-text);
+        margin-bottom: 10px;
+    }
+    
+    .upload-hint {
+        font-size: 0.9rem;
+        color: #999;
+    }
+    
+    .file-input {
+        display: none;
+    }
+    
+    .selected-file {
+        display: none;
+        padding: 15px;
+        background-color: #e8f5e9;
+        border: 1px solid #4caf50;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .selected-file.show {
+        display: block;
+    }
+    
+    .selected-file-name {
+        font-weight: bold;
+        color: #2e7d32;
+    }
+    
+    .import-options {
+        margin-bottom: 30px;
+    }
+    
+    .option-group {
+        margin-bottom: 20px;
+    }
+    
+    .option-label {
+        display: block;
+        font-weight: bold;
+        color: var(--color-text);
+        margin-bottom: 10px;
+    }
+    
+    .radio-group {
+        display: flex;
+        gap: 30px;
+    }
+    
+    .radio-option {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+    }
+    
+    .radio-option input {
+        margin-right: 8px;
+    }
+    
+    .submit-btn {
+        width: 100%;
+        padding: 15px;
+        background-color: var(--color-text);
+        color: var(--color-white);
+        border: none;
+        border-radius: 4px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .submit-btn:hover:not(:disabled) {
+        background-color: var(--color-accent);
+    }
+    
+    .submit-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+    
+    .template-section {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .template-title {
+        font-weight: bold;
+        color: var(--color-text);
+        margin-bottom: 10px;
+    }
+    
+    .template-description {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 15px;
+    }
+    
+    .download-template-btn {
+        padding: 10px 20px;
+        background-color: var(--color-primary);
+        color: var(--color-white);
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        display: inline-block;
+        transition: all 0.2s;
+    }
+    
+    .download-template-btn:hover {
+        background-color: var(--color-accent);
+    }
+    
+    .info-box {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+    
+    .info-box-title {
+        font-weight: bold;
+        color: #1976d2;
+        margin-bottom: 8px;
+    }
+    
+    .info-box-list {
+        font-size: 0.9rem;
+        color: #555;
+        line-height: 1.8;
+        margin-left: 20px;
+    }
+</style>
 
-    <div style="background: white; padding: 40px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-        <h1 style="margin-top: 0;">📥 批量導入文物數據</h1>
-        <p style="color: #666;">支持上傳 CSV、XLSX 格式文件。請確保文件列名與系統規範一致。</p>
-
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
-
-        <form action="{{ url_for('admin_import') }}" method="POST" enctype="multipart/form-data">
-            <div style="margin-bottom: 25px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 10px;">1. 選擇導入模式</label>
-                <select name="import_mode" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
-                    <option value="skip">跳過模式（若系統已有相同 ID 則不處理）</option>
-                    <option value="update">更新模式（若系統已有相同 ID 則覆蓋舊資料）</option>
-                </select>
+<div class="admin-container">
+    <a href="{{ url_for('admin_dashboard') }}" class="back-link">← 返回仪表板</a>
+    
+    <div class="import-panel">
+        <div class="import-header">
+            <h1 class="import-title">📥 元数据导入</h1>
+            <p class="import-subtitle">批量导入文物元数据信息</p>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 20px;">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}" style="padding: 12px; border-radius: 4px; margin-bottom: 10px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <!-- 下载模板 -->
+        <div class="template-section">
+            <div class="template-title">📄 下载导入模板</div>
+            <div class="template-description">
+                首次使用？下载标准模板，填写数据后上传
             </div>
-
-            <div style="margin-bottom: 25px; border: 2px dashed #ddd; padding: 30px; text-align: center; border-radius: 8px;">
-                <label style="display: block; font-weight: bold; margin-bottom: 10px;">2. 上傳數據文件</label>
-                <input type="file" name="file" accept=".csv, .xlsx, .xls" required>
-            </div>
-
-            <button type="submit" style="width: 100%; padding: 15px; background: var(--color-primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                確認並開始導入
-            </button>
-        </form>
-
-        <div style="margin-top: 30px; background: #fffdf0; padding: 20px; border-radius: 8px; border: 1px solid #f5e79e;">
-            <h3 style="margin-top: 0; font-size: 1rem; color: #856404;">⚠️ 注意事項</h3>
-            <ul style="font-size: 0.9rem; color: #856404; padding-left: 20px;">
-                <li>必須包含關鍵欄位：<strong>Source_ID, Original_ID, Title_CN</strong></li>
-                <li>日期欄位請使用數字或標準字串格式。</li>
-                <li>一次建議上傳不超過 1000 筆數據以維持系統穩定。</li>
-                <li><a href="{{ url_for('download_import_template') }}">點此下載範本檔案</a></li>
+            <a href="{{ url_for('download_import_template') }}" class="download-template-btn">
+                下载 CSV 模板
+            </a>
+        </div>
+        
+        <!-- 使用说明 -->
+        <div class="info-box">
+            <div class="info-box-title">📌 导入说明</div>
+            <ul class="info-box-list">
+                <li>支持 CSV 和 Excel 格式（.xlsx, .xls）</li>
+                <li>必需字段：Title_CN（中文名称）、Source_ID（来源机构ID）、Original_ID（原始编号）</li>
+                <li>可选字段：Title_EN、Description_CN、Classification、Material、Date_CN、Date_EN 等</li>
+                <li>批量导入时，系统会根据 Source_ID + Original_ID 判断是否为重复记录</li>
             </ul>
         </div>
+        
+        <form action="{{ url_for('admin_import') }}" method="POST" enctype="multipart/form-data" id="importForm">
+            <!-- 上传区域 -->
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">点击选择文件或拖拽文件到此处</div>
+                <div class="upload-hint">支持 CSV、XLSX、XLS 格式</div>
+            </div>
+            
+            <input type="file" 
+                   id="fileInput" 
+                   name="file" 
+                   accept=".csv,.xlsx,.xls" 
+                   class="file-input"
+                   required>
+            
+            <!-- 已选择文件提示 -->
+            <div class="selected-file" id="selectedFile">
+                <span class="selected-file-name" id="selectedFileName"></span>
+                <button type="button" onclick="clearFile()" style="float: right; background: none; border: none; color: #d32f2f; cursor: pointer; font-weight: bold;">✕ 清除</button>
+            </div>
+            
+            <!-- 导入选项 -->
+            <div class="import-options">
+                <div class="option-group">
+                    <label class="option-label">遇到重复记录时：</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="import_mode" value="skip" checked>
+                            跳过（保留原记录）
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="import_mode" value="update">
+                            更新（覆盖原记录）
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 提交按钮 -->
+            <button type="submit" class="submit-btn" id="submitBtn" disabled>
+                开始导入
+            </button>
+        </form>
     </div>
 </div>
+
+<script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const selectedFile = document.getElementById('selectedFile');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // 文件选择
+    fileInput.addEventListener('change', function(e) {
+        if (this.files.length > 0) {
+            const file = this.files[0];
+            selectedFileName.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+            selectedFile.classList.add('show');
+            submitBtn.disabled = false;
+        }
+    });
+    
+    // 拖拽上传
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            fileInput.dispatchEvent(new Event('change'));
+        }
+    });
+    
+    // 清除文件
+    function clearFile() {
+        fileInput.value = '';
+        selectedFile.classList.remove('show');
+        submitBtn.disabled = true;
+    }
+    
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    
+    // 表单提交时显示加载状态
+    document.getElementById('importForm').addEventListener('submit', function() {
+        submitBtn.textContent = '正在导入，请稍候...';
+        submitBtn.disabled = true;
+    });
+</script>
 {% endblock %}
