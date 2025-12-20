@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title or '馆藏目录' }} - 遗珍图库{% endblock %}
+
+{% block content %}
+<h2>{{ page_title or '馆藏目录' }}</h2>
+<hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">
+
+<div class="catalog-grid">
+    {% for item in artifacts %}
+    <a href="{{ url_for('detail', artifact_id=item.artifact_id) }}" class="card">
+        <div class="card-image-wrapper">
+            {% if item.local_path %}
+                <img src="{{ url_for('static', filename=item.local_path) }}" alt="{{ item.title }}" class="card-image">
+            {% else %}
+                <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:#999;">暂无图片</div>
+            {% endif %}
+        </div>
+        <div class="card-info">
+            <div class="card-title">{{ item.title or '未命名文物' }}</div>
+            <div class="card-date">{{ item.date_text or '年代未知' }}</div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+
+{% block title %}平台支持 - 遗珍图库{% endblock %}
+
+{% block content %}
+<style>
+    /* 支持页面专用样式 */
+    .support-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    /* 页面标题区 */
+    .page-header {
+        text-align: center;
+        margin-bottom: 50px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        margin-bottom: 10px;
+        color: var(--color-text);
+    }
+
+    .page-desc {
+        color: #666;
+        font-size: 14px;
+    }
+
+    /* 主菜单卡片网格 */
+    .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 30px;
+        margin-bottom: 40px;
+    }
+
+    .menu-card {
+        background: var(--color-white);
+        border-radius: 12px;
+        padding: 40px 30px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        border: 1px solid transparent;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100%;
+    }
+
+    .menu-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        border-color: var(--color-accent);
+    }
+
+    .icon-box {
+        width: 80px;
+        height: 80px;
+        background: var(--color-lavender);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        color: var(--color-primary);
+        margin-bottom: 20px;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    .menu-card:hover .icon-box {
+        background: var(--color-accent);
+        color: var(--color-white);
+    }
+
+    .card-title {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: var(--color-text);
+    }
+
+    .card-desc {
+        font-size: 13px;
+        color: #666;
+        line-height: 1.6;
+    }
+
+    /* 子页面通用样式 */
+    .sub-page {
+        display: none;
+        background: var(--color-white);
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        animation: fadeIn 0.3s ease;
+    }
+
+    .sub-page.active {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: 20px;
+        cursor: pointer;
+        color: var(--color-primary);
+        font-weight: bold;
+        font-size: 14px;
+        text-decoration: none;
+    }
+
+    .back-btn:hover {
+        text-decoration: underline;
+    }
+
+    /* 子页面：使用指南 */
+    .guide-section {
+        margin-bottom: 30px;
+    }
+
+    .guide-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--color-accent);
+        padding-left: 10px;
+        color: var(--color-text);
+    }
+
+    .guide-content {
+        font-size: 14px;
+        line-height: 1.8;
+        color: #666;
+    }
+
+    .guide-content ul {
+        padding-left: 20px;
+        margin-top: 10px;
+    }
+
+    .guide-content li {
+        margin-bottom: 10px;
+    }
+
+    /* 子页面：联系与反馈 */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        font-size: 14px;
+        color: var(--color-text);
+    }
+
+    .form-input,
+    .form-textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 14px;
+    }
+
+    .form-input:focus,
+    .form-textarea:focus {
+        outline: none;
+        border-color: var(--color-primary);
+    }
+
+    .submit-btn {
+        background: var(--color-primary);
+        color: var(--color-white);
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+
+    .submit-btn:hover {
+        background: var(--color-accent);
+    }
+
+    /* 子页面：后台管理 */
+    .admin-dashboard {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .admin-header {
+        background: var(--color-lavender);
+        padding: 15px 20px;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        color: var(--color-text);
+    }
+
+    .admin-row {
+        padding: 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .admin-row:last-child {
+        border-bottom: none;
+    }
+
+    .upload-area {
+        border: 2px dashed var(--border-color);
+        padding: 30px;
+        text-align: center;
+        color: #666;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: border-color 0.2s, color 0.2s;
+    }
+
+    .upload-area:hover {
+        border-color: var(--color-accent);
+        color: var(--color-primary);
+    }
+
+    .admin-badge {
+        font-size: 12px;
+        background: var(--color-lavender);
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: var(--color-text);
+    }
+</style>
+
+<div class="support-container">
+    <!-- 页面主标题 -->
+    <header class="page-header" id="mainHeader">
+        <h1 class="page-title">平台支持与帮助</h1>
+        <p class="page-desc">这里提供详细的使用指南、问题反馈渠道以及管理员入口。</p>
+    </header>
+
+    <!-- 主菜单 -->
+    <div class="menu-grid">
+        <!-- 使用指南入口 -->
+        <a href="{{ url_for('support_guide') }}" class="menu-card" style="text-decoration: none; color: inherit;">
+            <div class="icon-box">📖</div>
+            <h2 class="card-title">使用指南</h2>
+            <p class="card-desc">了解如何进行高级检索、创建图集以及导出数据。</p>
+        </a>
+
+        <!-- 联系与反馈入口 -->
+        <a href="{{ url_for('support_contact') }}" class="menu-card" style="text-decoration: none; color: inherit;">
+            <div class="icon-box">✉️</div>
+            <h2 class="card-title">联系与反馈</h2>
+            <p class="card-desc">提交Bug报告、功能建议或联系我们的技术支持团队。</p>
+        </a>
+
+        <!-- 后台管理入口 (带锁) -->
+        <a href="{{ url_for('admin_login') }}" class="menu-card" style="text-decoration: none; color: inherit;">
+            <div class="icon-box">⚙️</div>
+            <h2 class="card-title">后台管理</h2>
+            <p class="card-desc">仅限管理员/开发者。包括批量数据导入和日志查看。</p>
+        </a>
+    </div>
+</div>
+{% endblock %}
+

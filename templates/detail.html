@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ artifact.title }} - 详情{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+    <a href="#" onclick="goBack(); return false;" style="color: #9E97B0 !important; text-decoration: none; font-weight: bold; display: inline-block;">
+        &larr; 返回
+    </a>
+</div>
+
+<script>
+function goBack() {
+    // 檢查是否有歷史紀錄可以返回
+    if (document.referrer !== "") {
+        window.history.back();
+    } else {
+        // 如果是直接打開連結沒有來源，則回到首頁
+        window.location.href = "{{ url_for('homepage') }}";
+    }
+}
+</script>
+
+<div class="detail-container">
+    <!-- 左侧：图像区域 -->
+    <div class="image-section">
+        <div class="image-viewer">
+            {% if artifact.local_path %}
+                <img src="{{ url_for('static', filename=artifact.local_path) }}" alt="{{ artifact.title }}" id="mainImage" class="artifact-img">
+            {% else %}
+                <p>暂无预览图</p>
+            {% endif %}
+        </div>
+        <div class="image-controls">
+            <button class="control-btn" onclick="zoomIn()">+</button>
+            <button class="control-btn" onclick="zoomOut()">-</button>
+            <button class="control-btn" onclick="resetZoom()">R</button>
+            <button class="control-btn" onclick="toggleFullscreen()">[ ]</button>
+        </div>
+        <!-- 缩略图 -->
+        {% if artifact.image_paths %}
+        <div class="thumbnail-container" style="margin-top:20px;">
+            {% for img_path in artifact.image_paths %}
+            {% set is_first = loop.first %}
+            {% set image_url = url_for('static', filename=img_path) %}
+            <div class="thumbnail-item{% if is_first %} thumbnail-active{% endif %}" 
+                 {% if is_first %}style="border-color: #333;"{% endif %}
+                 onclick="changeMainImage('{{ image_url }}', this)">
+                <img src="{{ image_url }}"
+                     alt="缩略图 {{ loop.index }}">
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 右侧：信息区域 -->
+    <div class="info-section">
+        <h1 class="artifact-title">{{ artifact.title or '未命名文物' }}</h1>
+        <div class="divider"></div>
+
+        <div class="meta-table">
+            <div class="meta-row">
+                <span class="meta-label">艺术家:</span>
+                <span class="meta-value">{{ artifact.artist_name or '佚名 (Unknown)' }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">时代:</span>
+                <span class="meta-value">{{ artifact.date_text or '未知' }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">地区:</span>
+                <span class="meta-value">{{ artifact.dept_name }} / {{ artifact.culture_name }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">材质:</span>
+                <span class="meta-value">{{ artifact.medium }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">尺寸:</span>
+                <span class="meta-value">{{ artifact.dimensions }}</span>
+            </div>
+            <div class="meta-row">
+                <span class="meta-label">资源链接:</span>
+                <span class="meta-value">
+                    {% if artifact.source_url %}
+                        <a href="{{ artifact.source_url }}" target="_blank" style="color:var(--color-text); text-decoration:underline;">官方藏品详情页</a>
+                    {% else %}
+                        无链接
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-primary" onclick="openAddToAlbumModal()">添加到我的图集</button>
+            <a href="{{ url_for('download_artifact_image', artifact_id=artifact.artifact_id) }}" 
+                class="btn btn-outline" 
+                style="text-decoration: none; border: 1px solid #9E97B0 !important; color: #4A4557 !important; padding: 8px 20px; border-radius: 4px; font-weight: bold; display: inline-block;">
+                下载图像数据
+            </a>
+        </div>
+
+        <div class="description">
+            <span class="desc-title">藏品简介:</span>
+            <p>{{ artifact.description or '暂无详细描述。' }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- 添加到图集模态框 -->
+<div id="addToAlbumModal" class="album-modal" style="display: none;">
+    <div class="album-modal-content">
+        <span class="album-modal-close" onclick="closeAddToAlbumModal()">&times;</span>
+        <h2 class="album-modal-title">添加到图集</h2>
+        
+        <div id="album-selection-area">
+            <div class="album-option">
+                <input type="radio" name="album_choice" value="existing" id="choice-existing" checked onchange="toggleAlbumChoice()">
+                <label for="choice-existing">选择现有图集</label>
+            </div>
+            <select id="album-select" class="album-select">
+                <option value="">加载中...</option>
+            </select>
+            
+            <div class="album-option" style="margin-top: 15px;">
+                <input type="radio" name="album_choice" value="new" id="choice-new" onchange="toggleAlbumChoice()">
+                <label for="choice-new">创建新图集</label>
+            </div>
+            <input type="text" id="new-album-name" class="album-input" placeholder="输入新图集名称" style="display: none;">
+        </div>
+        
+        <div class="album-modal-buttons">
+            <button class="album-btn album-btn-secondary" onclick="closeAddToAlbumModal()">取消</button>
+            <button class="album-btn album-btn-primary" onclick="confirmAddToAlbum()">确认添加</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .album-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+    
+    .album-modal-content {
+        background-color: var(--color-white);
+        margin: 10% auto;
+        padding: 30px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        position: relative;
+    }
+    
+    .album-modal-close {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        color: #999;
+    }
+    
+    .album-modal-close:hover {
+        color: var(--color-text);
+    }
+    
+    .album-modal-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: var(--color-text);
+    }
+    
+    .album-option {
+        margin-bottom: 10px;
+    }
+    
+    .album-option label {
+        margin-left: 8px;
+        cursor: pointer;
+        color: var(--color-text);
+    }
+    
+    .album-select, .album-input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 1rem;
+        box-sizing: border-box;
+        margin-top: 10px;
+    }
+    
+    .album-select:focus, .album-input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+    }
+    
+    .album-modal-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 25px;
+        justify-content: flex-end;
+    }
+    
+    .album-btn {
+        padding: 10px 20px;
+        border: 1px solid var(--color-text);
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s;
+    }
+    
+    .album-btn-primary {
+        background-color: var(--color-text);
+        color: var(--color-white);
+        border-color: var(--color-text);
+    }
+    
+    .album-btn-secondary {
+        background-color: var(--color-white);
+        color: var(--color-text);
+    }
+    
+    .album-btn:hover {
+        background-color: var(--color-accent);
+        color: var(--color-white);
+        border-color: var(--color-accent);
+    }
+    
+    /* 成功提示样式 */
+    .success-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #d4edda;
+        color: #155724;
+        padding: 15px 20px;
+        border: 1px solid #c3e6cb;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    .detail-container, .info-value, p, div {
+        color: #4A4557 !important;
+    }
+
+    .artifact-title {
+        color: #4A4557 !important;
+        border-bottom: 2px solid #9E97B0 !important;
+    }
+
+    /* 標籤（如：朝代、材質）使用紫藤灰 */
+    .info-label {
+        color: #9E97B0 !important;
+        font-weight: bold;
+    }
+
+    /* 返回連結 */
+    .back-link {
+        color: #9E97B0 !important;
+    }
+</style>
+
+<script>
+    const artifactId = {{ artifact.artifact_id }};
+    let albums = [];
+    let isLoggedIn = {{ 'true' if session.get('user_id') else 'false' }};
+    
+    function openAddToAlbumModal() {
+        const modal = document.getElementById('addToAlbumModal');
+        modal.style.display = 'block';
+        
+        // 加载图集列表
+        loadAlbums();
+    }
+    
+    function closeAddToAlbumModal() {
+        const modal = document.getElementById('addToAlbumModal');
+        modal.style.display = 'none';
+        // 重置表单
+        document.getElementById('choice-existing').checked = true;
+        toggleAlbumChoice();
+        document.getElementById('new-album-name').value = '';
+    }
+    
+    function toggleAlbumChoice() {
+        const choice = document.querySelector('input[name="album_choice"]:checked').value;
+        const albumSelect = document.getElementById('album-select');
+        const newAlbumInput = document.getElementById('new-album-name');
+        
+        if (choice === 'new') {
+            albumSelect.style.display = 'none';
+            newAlbumInput.style.display = 'block';
+        } else {
+            albumSelect.style.display = 'block';
+            newAlbumInput.style.display = 'none';
+        }
+    }
+    
+    function loadAlbums() {
+        if (!isLoggedIn) {
+            // 未登录用户，只显示默认收藏夹选项
+            const select = document.getElementById('album-select');
+            select.innerHTML = '<option value="guest_default">默认收藏夹</option>';
+            // 禁用创建新图集选项
+            document.getElementById('choice-new').disabled = true;
+            document.getElementById('choice-new').parentElement.style.opacity = '0.5';
+            return;
+        }
+        
+        // 已登录用户，加载图集列表
+        fetch('/api/albums')
+            .then(response => response.json())
+            .then(data => {
+                albums = data.albums || [];
+                const select = document.getElementById('album-select');
+                
+                if (albums.length === 0) {
+                    select.innerHTML = '<option value="">暂无图集，请创建新图集</option>';
+                    // 自动切换到创建新图集
+                    document.getElementById('choice-new').checked = true;
+                    toggleAlbumChoice();
+                } else {
+                    select.innerHTML = albums.map(album => 
+                        `<option value="${album.album_id}">${album.name}</option>`
+                    ).join('');
+                }
+            })
+            .catch(error => {
+                console.error('加载图集失败:', error);
+                document.getElementById('album-select').innerHTML = '<option value="">加载失败</option>';
+            });
+    }
+    
+    function confirmAddToAlbum() {
+        const choice = document.querySelector('input[name="album_choice"]:checked').value;
+        let albumId = null;
+        let albumName = null;
+        
+        if (choice === 'new') {
+            albumName = document.getElementById('new-album-name').value.trim();
+            if (!albumName) {
+                alert('请输入图集名称');
+                return;
+            }
+        } else {
+            albumId = document.getElementById('album-select').value;
+            if (!albumId && albums.length > 0) {
+                alert('请选择图集');
+                return;
+            }
+        }
+        
+        // 发送请求
+        fetch('/api/artifact/add_to_album', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                artifact_id: artifactId,
+                album_id: albumId,
+                album_name: albumName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 显示成功提示
+                showSuccessToast(data.message || '添加成功！');
+                closeAddToAlbumModal();
+                // 如果是创建新图集，重新加载列表
+                if (albumName) {
+                    loadAlbums();
+                }
+            } else {
+                alert(data.message || '添加失败');
+            }
+        })
+        .catch(error => {
+            console.error('添加失败:', error);
+            alert('添加失败，请稍后重试');
+        });
+    }
+    
+    function showSuccessToast(message) {
+        // 创建提示元素
+        const toast = document.createElement('div');
+        toast.className = 'success-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        // 3秒后自动消失
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 300);
+        }, 3000);
+    }
+    
+    // 点击模态框外部关闭
+    window.onclick = function(event) {
+        const modal = document.getElementById('addToAlbumModal');
+        if (event.target === modal) {
+            closeAddToAlbumModal();
+        }
+    }
+</script>
+{% endblock %}

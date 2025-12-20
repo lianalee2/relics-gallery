@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+
+{% block title %}管理系統 - 遺珍圖庫{% endblock %}
+
+{% block content %}
+<style>
+    :root {
+        --admin-bg: #f4f7f6;
+        --panel-shadow: 0 4px 6px rgba(0,0,0,0.07);
+    }
+
+    .admin-container {
+        max-width: 1400px;
+        margin: 20px auto;
+        padding: 0 20px;
+        font-family: 'Ma Shan Zheng',"Noto Serif SC", sans-serif;
+    }
+    
+    /* 頂部標題與導航 */
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding: 25px;
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: var(--panel-shadow);
+    }
+    
+    .admin-title-group h1 {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: var(--color-text);
+        margin: 0;
+    }
+
+    .admin-title-group p {
+        color: #ffffff;
+        margin: 5px 0 0 0;
+        font-size: 0.9rem;
+    }
+    
+    .admin-nav {
+        display: flex;
+        gap: 12px;
+    }
+    
+    .admin-nav-btn {
+        padding: 10px 18px;
+        background-color: var(--color-primary);
+        color: var(--color-white) !important;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 0.95rem;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .admin-nav-btn:hover {
+        background-color: var(--color-accent);
+        transform: translateY(-2px);
+    }
+    
+    .admin-nav-btn.logout {
+        background-color: #e53e3e;
+    }
+    
+    /* 批量導入面板 - 強化版 */
+    .import-panel {
+        background: linear-gradient(135deg, #ffffff 0%, #f9fbfc 100%);
+        border: 2px dashed var(--color-primary);
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+
+    .import-panel h2 {
+        margin-top: 0;
+        color: var(--color-primary);
+    }
+
+    .import-box {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .file-input-wrapper {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+    }
+
+    .btn-file-select {
+        border: 1px solid #ddd;
+        color: #555;
+        background: white;
+        padding: 8px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    /* 統計卡片 */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 25px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        box-shadow: var(--panel-shadow);
+    }
+    
+    .stat-icon {
+        font-size: 2.5rem;
+        background: var(--color-lavender);
+        width: 70px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    
+    .stat-info {
+        text-align: left;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: var(--color-text);
+        line-height: 1;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: #777;
+        margin-top: 5px;
+    }
+    
+    /* 兩列佈局 */
+    .two-column-grid {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 30px;
+    }
+    
+    .admin-panel {
+        background-color: var(--color-white);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: var(--panel-shadow);
+    }
+    
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--border-color);
+    }
+    
+    .panel-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: var(--color-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    /* 日志表格優化 */
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .log-table tr {
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .log-table tr:last-child {
+        border-bottom: none;
+    }
+
+    .log-table td {
+        padding: 12px 8px;
+        vertical-align: middle;
+    }
+    
+    .log-time {
+        color: #999;
+        font-size: 0.8rem;
+        width: 100px;
+    }
+
+    .status-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    .status-success { background: #c6f6d5; color: #22543d; }
+    .status-update { background: #bee3f8; color: #2a4365; }
+    
+    .log-operation {
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    /* 專門修復首頁表頭文字顏色 */
+    .navbar .user-menu a, 
+    .navbar .user-menu span,
+    .navbar a div {
+        color: #9E97B0 !important; /* 強制文字顏色變回紫藤灰 */
+        background-color: transparent !important; /* 確保背景是透明的 */
+    }
+
+/* 如果你的導覽按鈕文字也變色了，請加這行 */
+    .nav-link {
+        color: #9E97B0 !important;
+    }
+</style>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <div class="admin-title-group">
+            <h1>🛠️ 系統後台管理</h1>
+            <p>歡迎回來，管理員。當前系統運行正常。</p>
+        </div>
+        <div class="admin-nav">
+            <a href="{{ url_for('admin_images') }}" class="admin-nav-btn">🖼️ 圖像管理</a>
+            <a href="{{ url_for('admin_logs') }}" class="admin-nav-btn">📋 完整日誌</a>
+            <a href="{{ url_for('admin_logout') }}" class="admin-nav-btn logout">安全登出</a>
+        </div>
+    </div>
+
+    <div class="import-panel">
+        <h2>📥 批量數據導入系統</h2>
+        <p>上傳 CSV 或 Excel 文件以更新文物元數據庫</p>
+        
+        <form action="{{ url_for('admin_import') }}" method="POST" enctype="multipart/form-data">
+            <div class="import-box">
+                <input type="file" name="file" accept=".csv, .xlsx, .xls" class="btn-file-select" required>
+                <select name="import_mode" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="skip">跳過已存在記錄</option>
+                    <option value="update">更新已存在記錄</option>
+                </select>
+                <button type="submit" class="admin-nav-btn">開始批量導入</button>
+            </div>
+        </form>
+        <div style="margin-top: 15px;">
+            <a href="{{ url_for('download_import_template') }}" style="color: var(--color-primary); font-size: 0.9rem; text-decoration: none;">
+                📄 下載標準導入模板 (CSV)
+            </a>
+        </div>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-info">
+                <div class="stat-value">{{ stats.total_artifacts }}</div>
+                <div class="stat-label">文物總數</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📷</div>
+            <div class="stat-info">
+                <div class="stat-value">{{ stats.total_images }}</div>
+                <div class="stat-label">圖像庫存</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🏛️</div>
+            <div class="stat-info">
+                <div class="stat-value">{{ stats.total_sources }}</div>
+                <div class="stat-label">來源機構</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-info">
+                <div class="stat-value">{{ stats.recent_artifacts }}</div>
+                <div class="stat-label">七日內新增</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="two-column-grid">
+        <div class="admin-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">📜 系統操作行為日誌</h2>
+                <a href="{{ url_for('admin_logs') }}" class="panel-action">查看更多日誌 →</a>
+            </div>
+            
+            {% if recent_logs %}
+            <table class="log-table">
+                {% for log in recent_logs %}
+                <tr>
+                    <td class="log-time">{{ log.Log_Time.strftime('%m-%d %H:%M') }}</td>
+                    <td>
+                        <span class="status-badge {% if log.Operation_Type == 'INSERT' %}status-success{% else %}status-update{% endif %}">
+                            {{ log.Operation_Type }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="log-operation">{{ log.Table_Name }}</div>
+                        <div class="log-description">{{ log.Description[:60] }}...</div>
+                    </td>
+                    <td style="color: #888; font-size: 0.8rem;">{{ log.User_ID }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <div style="padding: 40px; text-align: center; color: #999;">
+                <p>目前尚無系統操作記錄</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="admin-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">📊 數據來源分佈</h2>
+            </div>
+            
+            {% if source_stats %}
+                {% for source in source_stats %}
+                <div class="source-stat-item">
+                    <span class="source-name">{{ source.Museum_Name_CN }}</span>
+                    <span class="source-count">{{ source.count }} 件</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: #999; padding: 20px;">暫無數據</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // 自動消失 Flash 訊息的腳本 (可選)
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const flashes = document.querySelectorAll('.flash-message');
+            flashes.forEach(f => f.style.display = 'none');
+        }, 5000);
+    });
+</script>
+{% endblock %}
