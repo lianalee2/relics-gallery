@@ -320,24 +320,9 @@
         
         <div class="album-header-actions">
             <button class="album-action-btn" onclick="window.location.href='{{ url_for('random_browse') }}'">
-                继续添加文物
+                繼續添加文物
             </button>
-            <button class="album-action-btn">
-                导出数据
-            </button>
-            <button class="album-action-btn">
-                分享图集
-            </button>
-            {% if album.album_id != 'guest_default' and session.get('user_id') %}
-            <button class="album-action-btn" onclick="openRenameModal({{ album.album_id }}, {{ album.name|tojson }})" style="background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb;">
-                重命名图集
-            </button>
-            {% if album.name != '默认收藏夹' %}
-            <button class="album-action-btn" onclick="openDeleteModal({{ album.album_id }}, {{ album.name|tojson }})" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">
-                删除图集
-            </button>
-            {% endif %}
-            {% endif %}
+
         </div>
     </div>
 </div>

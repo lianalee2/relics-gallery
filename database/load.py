@@ -1,14 +1,15 @@
 import pandas as pd
 import mysql.connector
 from mysql.connector import Error
+import os
 import re
 
 # ================= 配置区域 =================
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'leeanna',  # 请根据实际情况修改
-    'database': 'project'
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'user': os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', 'leeanna'),  # 可通过环境变量DB_PASSWORD设置，否则使用默认值
+    'database': os.getenv('DB_NAME', 'project')
 }
 
 EXCEL_FILE = 'database/data.xlsx'  # 你的Excel文件名

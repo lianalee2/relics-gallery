@@ -70,46 +70,66 @@ def build_images_query():
     
     return query.strip()
 
-def build_search_query(search_term):
+def build_search_query(search_term, start_year=None, end_year=None):
     """构建搜索查询SQL
-    搜索范围包括：标题、艺术家、文化、来源、年代、描述、材质
-    返回结果包含文化、材质和年代信息，用于筛选和排序
+    搜索范围包括：标题、描述、文化
+    支持年代筛选，对宋、明、清代有特殊处理
+    返回查询字符串和参数列表
+    
+    Args:
+        search_term: 搜索关键词
+        start_year: 起始年份（可选）
+        end_year: 结束年份（可选）
+    
+    Returns:
+        tuple: (查询字符串, 参数列表) 或 (None, []) 如果 search_term 为空
     """
     if not search_term:
-        return None
+        return None, []
     
-    # 使用LIKE进行模糊匹配，支持中文搜索
-    search_pattern = f"%{search_term}%"
-    
-    query = f"""
-        SELECT DISTINCT 
-            a.{FIELDS['artifact']['id']} AS artifact_id,
-            a.{FIELDS['artifact']['title_cn']} AS title,
+    # 构建基础查询
+    base_query = f"""
+        SELECT 
+            a.{FIELDS['artifact']['id']} AS artifact_id, 
+            a.{FIELDS['artifact']['title_cn']} AS title, 
             a.{FIELDS['artifact']['date_cn']} AS date_text,
             ANY_VALUE(iv.{FIELDS['image']['local_path']}) AS local_path,
             ANY_VALUE(p.{FIELDS['property']['culture']}) AS culture_name,
-            ANY_VALUE(a.{FIELDS['artifact']['material']}) AS medium,
-            ANY_VALUE(a.{FIELDS['artifact']['start_year']}) AS start_year
+            ANY_VALUE(a.{FIELDS['artifact']['material']}) AS medium
         FROM {TABLES['artifacts']} a
         LEFT JOIN {TABLES['image_versions']} iv ON a.{FIELDS['artifact']['id']} = iv.{FIELDS['image']['artifact_id']}
         LEFT JOIN {TABLES['properties']} p ON a.{FIELDS['artifact']['id']} = p.{FIELDS['property']['artifact_id']}
-        LEFT JOIN {TABLES['sources']} s ON a.{FIELDS['artifact']['source_id']} = s.{FIELDS['source']['id']}
-        WHERE 
-            a.{FIELDS['artifact']['title_cn']} LIKE %s
-            OR a.{FIELDS['artifact']['title_en']} LIKE %s
-            OR a.{FIELDS['artifact']['date_cn']} LIKE %s
-            OR a.{FIELDS['artifact']['date_en']} LIKE %s
-            OR a.{FIELDS['artifact']['material']} LIKE %s
-            OR a.{FIELDS['artifact']['description_cn']} LIKE %s
-            OR COALESCE(p.{FIELDS['property']['artist']}, '') LIKE %s
-            OR COALESCE(p.{FIELDS['property']['culture']}, '') LIKE %s
-            OR COALESCE(p.{FIELDS['property']['geography']}, '') LIKE %s
-            OR COALESCE(s.{FIELDS['source']['museum_name_cn']}, '') LIKE %s
-        GROUP BY a.{FIELDS['artifact']['id']}
-        ORDER BY a.{FIELDS['artifact']['id']} DESC
+        WHERE (
+            a.{FIELDS['artifact']['title_cn']} LIKE %s 
+            OR a.{FIELDS['artifact']['description_cn']} LIKE %s 
+            OR p.{FIELDS['property']['culture']} LIKE %s
+        )
     """
     
-    return query.strip()
+    search_pattern = f"%{search_term}%"
+    params = [search_pattern, search_pattern, search_pattern]
+    
+    # 年代筛选逻辑（解决清代跑到宋代的问题）
+    if start_year is not None and end_year is not None:
+        date_cn_field = FIELDS['artifact']['date_cn']
+        start_year_field = FIELDS['artifact']['start_year']
+        # 使用文字匹配优先，避免数字填错导致的乱象
+        if start_year == 960 and end_year == 1279:  # 宋
+            base_query += f" AND (a.{date_cn_field} LIKE '%%宋%%')"
+        elif start_year == 1368 and end_year == 1644:  # 明
+            base_query += f" AND (a.{date_cn_field} LIKE '%%明%%')"
+        elif start_year == 1644 and end_year == 1911:  # 清
+            base_query += f" AND (a.{date_cn_field} LIKE '%%清%%' OR a.{date_cn_field} LIKE '%%康熙%%' OR a.{date_cn_field} LIKE '%%乾隆%%' OR a.{date_cn_field} LIKE '%%雍正%%')"
+        else:
+            # 西方或自定义区间，使用数字 start_year 字段
+            base_query += f" AND a.{start_year_field} BETWEEN %s AND %s"
+            params.append(start_year)
+            params.append(end_year)
+    
+    # 分组与排序
+    base_query += f" GROUP BY a.{FIELDS['artifact']['id']} ORDER BY a.{FIELDS['artifact']['id']} DESC"
+    
+    return base_query.strip(), params
 
 def build_cultures_browse_query():
     """构建文化浏览页面查询SQL
@@ -158,5 +178,11 @@ if __name__ == '__main__':
     print("\n图片查询：")
     print(build_images_query())
     print("\n搜索查询示例：")
-    print(build_search_query("测试"))
+    query, params = build_search_query("测试")
+    print(query)
+    print("参数:", params)
+    print("\n带年代筛选的搜索查询示例：")
+    query2, params2 = build_search_query("测试", 1644, 1911)
+    print(query2)
+    print("参数:", params2)
 
