@@ -751,7 +751,7 @@ def search():
             }
         
         # 应用筛选条件（在计算筛选选项之后）
-        if culture_filters or material_filters:
+        if culture_filters or material_filters or region_filters or era_filters:
             filtered_artifacts = []
             for artifact in artifacts:
                 # 检查文化筛选
@@ -766,6 +766,31 @@ def search():
                     artifact_material = artifact.get('medium', '') or ''
                     artifact_material = artifact_material.strip()
                     if artifact_material not in material_filters:
+                        continue
+                
+                # 检查地区筛选
+                if region_filters:
+                    artifact_geography = artifact.get('geography', '') or ''
+                    artifact_geography = artifact_geography.strip()
+                    if artifact_geography not in region_filters:
+                        continue
+                
+                # 检查年代筛选
+                if era_filters:
+                    artifact_date = artifact.get('date_text', '') or ''
+                    if artifact_date:
+                        try:
+                            system, bucket = normalize_era_from_date_cn(artifact_date.strip())
+                            # 年代筛选值格式：system__bucket
+                            era_key = f"{system}__{bucket}"
+                            # 检查是否匹配
+                            if era_key not in era_filters:
+                                continue
+                        except Exception:
+                            # 如果解析失败，跳过该文物
+                            continue
+                    else:
+                        # 如果没有年代信息，跳过
                         continue
                 
                 filtered_artifacts.append(artifact)
@@ -811,9 +836,11 @@ def get_filter_options_from_results(artifacts):
     从搜索结果中提取筛选选项数据
     返回各个筛选类别的选项及其数量（仅包含搜索结果中出现的）
     """
-    # 统计文化和材质
+    # 统计文化、材质、地区和年代
     culture_count = {}
     material_count = {}
+    geography_count = {}
+    era_count = {}
     
     for artifact in artifacts:
         # 统计文化
@@ -827,6 +854,24 @@ def get_filter_options_from_results(artifacts):
         if material and material.strip():
             material = material.strip()
             material_count[material] = material_count.get(material, 0) + 1
+        
+        # 统计地区
+        geography = artifact.get('geography')
+        if geography and geography.strip():
+            geography = geography.strip()
+            geography_count[geography] = geography_count.get(geography, 0) + 1
+        
+        # 统计年代
+        date_text = artifact.get('date_text')
+        if date_text and date_text.strip():
+            try:
+                system, bucket = normalize_era_from_date_cn(date_text.strip())
+                # 使用 system__bucket 作为唯一标识
+                era_key = f"{system}__{bucket}"
+                era_count[era_key] = era_count.get(era_key, 0) + 1
+            except Exception:
+                # 如果解析失败，跳过
+                pass
     
     # 转换为列表格式，按数量降序排列
     cultures = [
@@ -847,11 +892,31 @@ def get_filter_options_from_results(artifacts):
         for material, count in sorted(material_count.items(), key=lambda x: (-x[1], x[0]))
     ]
     
-    # 年代筛选暂时使用空列表（暂时不用接入实现）
-    eras = []
+    regions = [
+        {
+            'value': geography,
+            'label': geography,
+            'count': count
+        }
+        for geography, count in sorted(geography_count.items(), key=lambda x: (-x[1], x[0]))
+    ]
     
-    # 地区筛选暂时使用空列表
-    regions = []
+    # 年代筛选：转换为列表格式，按数量降序排列
+    eras = []
+    for era_key, count in sorted(era_count.items(), key=lambda x: (-x[1], x[0])):
+        # 解析 era_key (格式: system__bucket)
+        if '__' in era_key:
+            system, bucket = era_key.split('__', 1)
+            # 显示格式：系统 - 分类，例如 "东方纪年 - 宋"
+            label = f"{system} - {bucket}"
+        else:
+            label = era_key
+        
+        eras.append({
+            'value': era_key,
+            'label': label,
+            'count': count
+        })
     
     return {
         'eras': eras,

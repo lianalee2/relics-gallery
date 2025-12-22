@@ -93,8 +93,11 @@ def build_search_query(search_term, start_year=None, end_year=None):
             a.{FIELDS['artifact']['id']} AS artifact_id, 
             a.{FIELDS['artifact']['title_cn']} AS title, 
             a.{FIELDS['artifact']['date_cn']} AS date_text,
+            a.{FIELDS['artifact']['start_year']} AS start_year,
+            a.{FIELDS['artifact']['end_year']} AS end_year,
             ANY_VALUE(iv.{FIELDS['image']['local_path']}) AS local_path,
             ANY_VALUE(p.{FIELDS['property']['culture']}) AS culture_name,
+            ANY_VALUE(p.{FIELDS['property']['geography']}) AS geography,
             ANY_VALUE(a.{FIELDS['artifact']['material']}) AS medium
         FROM {TABLES['artifacts']} a
         LEFT JOIN {TABLES['image_versions']} iv ON a.{FIELDS['artifact']['id']} = iv.{FIELDS['image']['artifact_id']}

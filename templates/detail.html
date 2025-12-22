@@ -76,10 +76,12 @@ function goBack() {
                 <span class="meta-label">材质:</span>
                 <span class="meta-value">{{ artifact.medium }}</span>
             </div>
+            {% if artifact.dept_name != '大都会艺术博物馆' %}
             <div class="meta-row">
                 <span class="meta-label">尺寸:</span>
                 <span class="meta-value">{{ artifact.dimensions }}</span>
             </div>
+            {% endif %}
             <div class="meta-row">
                 <span class="meta-label">资源链接:</span>
                 <span class="meta-value">
@@ -101,10 +103,12 @@ function goBack() {
             </a>
         </div>
 
+        {% if artifact.dept_name != '大都会艺术博物馆' %}
         <div class="description">
             <span class="desc-title">藏品简介:</span>
             <p>{{ artifact.description or '暂无详细描述。' }}</p>
         </div>
+        {% endif %}
     </div>
 </div>
 

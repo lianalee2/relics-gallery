@@ -346,7 +346,7 @@
         </div>
 
         <!-- 地区筛选 -->
-        <div class="filter-group collapsed" data-group="region">
+        <div class="filter-group expanded" data-group="region">
             <div class="filter-group-title" onclick="toggleFilterGroup(this)">
                 <span>地区</span>
                 <span class="filter-group-toggle">+</span>
@@ -354,25 +354,29 @@
             <div class="filter-group-content">
                 <ul class="filter-checkbox-list">
                     {% for region in filter_options.regions|default([]) %}
+                    {% set region_id = 'region-' + region.value|replace(' ', '-')|replace('(', '')|replace(')', '')|replace('/', '-')|replace('\\', '-')|replace(':', '-')|replace('*', '-')|replace('?', '-')|replace('"', '-')|replace('<', '-')|replace('>', '-')|replace('|', '-') %}
                     <li class="filter-checkbox-item">
                         <input type="checkbox" 
-                               id="region-{{ region.value }}" 
+                               id="{{ region_id }}" 
                                name="region" 
                                value="{{ region.value }}"
                                {% if region.value in active_filters.get('region', []) %}checked{% endif %}
                                onchange="applyFilter('region', '{{ region.value }}', this.checked)">
-                        <label for="region-{{ region.value }}">
+                        <label for="{{ region_id }}">
                             <span>{{ region.label }}</span>
                             <span class="filter-count">({{ region.count }})</span>
                         </label>
                     </li>
                     {% endfor %}
+                    {% if not filter_options.regions or filter_options.regions|length == 0 %}
+                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">暂无地区数据</li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
 
-        <!-- 年代筛选（放到最底下，暂时不用接入实现） -->
-        <div class="filter-group collapsed" data-group="era">
+        <!-- 年代筛选 -->
+        <div class="filter-group expanded" data-group="era">
             <div class="filter-group-title" onclick="toggleFilterGroup(this)">
                 <span>年代</span>
                 <span class="filter-group-toggle">+</span>
@@ -380,21 +384,22 @@
             <div class="filter-group-content">
                 <ul class="filter-checkbox-list">
                     {% for era in filter_options.eras|default([]) %}
+                    {% set era_id = 'era-' + era.value|replace(' ', '-')|replace('(', '')|replace(')', '')|replace('/', '-')|replace('\\', '-')|replace(':', '-')|replace('*', '-')|replace('?', '-')|replace('"', '-')|replace('<', '-')|replace('>', '-')|replace('|', '-')|replace('__', '-') %}
                     <li class="filter-checkbox-item">
                         <input type="checkbox" 
-                               id="era-{{ era.value }}" 
+                               id="{{ era_id }}" 
                                name="era" 
                                value="{{ era.value }}"
                                {% if era.value in active_filters.get('era', []) %}checked{% endif %}
                                onchange="applyFilter('era', '{{ era.value }}', this.checked)">
-                        <label for="era-{{ era.value }}">
+                        <label for="{{ era_id }}">
                             <span>{{ era.label }}</span>
                             <span class="filter-count">({{ era.count }})</span>
                         </label>
                     </li>
                     {% endfor %}
                     {% if not filter_options.eras or filter_options.eras|length == 0 %}
-                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">年代筛选功能暂未开放</li>
+                    <li style="padding: 10px; color: #999; font-size: 0.9rem;">暂无年代数据</li>
                     {% endif %}
                 </ul>
             </div>
