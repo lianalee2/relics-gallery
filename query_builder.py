@@ -72,7 +72,7 @@ def build_images_query():
 
 def build_search_query(search_term, start_year=None, end_year=None):
     """构建搜索查询SQL
-    搜索范围包括：标题、描述、文化
+    搜索范围包括：标题（中英文）、描述（中文）、文化、艺术家、时代（中英文）、地区、材质、分类、博物馆名称
     支持年代筛选，对宋、明、清代有特殊处理
     返回查询字符串和参数列表
     
@@ -102,15 +102,37 @@ def build_search_query(search_term, start_year=None, end_year=None):
         FROM {TABLES['artifacts']} a
         LEFT JOIN {TABLES['image_versions']} iv ON a.{FIELDS['artifact']['id']} = iv.{FIELDS['image']['artifact_id']}
         LEFT JOIN {TABLES['properties']} p ON a.{FIELDS['artifact']['id']} = p.{FIELDS['property']['artifact_id']}
+        LEFT JOIN {TABLES['sources']} s ON a.{FIELDS['artifact']['source_id']} = s.{FIELDS['source']['id']}
         WHERE (
             a.{FIELDS['artifact']['title_cn']} LIKE %s 
+            OR a.{FIELDS['artifact']['title_en']} LIKE %s
             OR a.{FIELDS['artifact']['description_cn']} LIKE %s 
             OR p.{FIELDS['property']['culture']} LIKE %s
+            OR p.{FIELDS['property']['artist']} LIKE %s
+            OR a.{FIELDS['artifact']['date_cn']} LIKE %s
+            OR a.{FIELDS['artifact']['date_en']} LIKE %s
+            OR p.{FIELDS['property']['geography']} LIKE %s
+            OR a.{FIELDS['artifact']['material']} LIKE %s
+            OR a.{FIELDS['artifact']['classification']} LIKE %s
+            OR s.{FIELDS['source']['museum_name_cn']} LIKE %s
         )
     """
     
     search_pattern = f"%{search_term}%"
-    params = [search_pattern, search_pattern, search_pattern]
+    # 为所有搜索字段提供相同的搜索模式
+    params = [
+        search_pattern,  # Title_CN
+        search_pattern,  # Title_EN
+        search_pattern,  # Description_CN
+        search_pattern,  # Culture
+        search_pattern,  # Artist
+        search_pattern,  # Date_CN
+        search_pattern,  # Date_EN
+        search_pattern,  # Geography
+        search_pattern,  # Material
+        search_pattern,  # Classification
+        search_pattern   # Museum_Name_CN
+    ]
     
     # 年代筛选逻辑（解决清代跑到宋代的问题）
     if start_year is not None and end_year is not None:
