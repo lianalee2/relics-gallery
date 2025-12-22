@@ -348,7 +348,8 @@ def homepage():
         return render_template('homepage.html', 
                              random_images=[], 
                              culture_images=[],
-                             geography_images=[])
+                             geography_images=[],
+                             era_images=[])
     
     try:
         cursor = conn.cursor(dictionary=True)
@@ -395,6 +396,19 @@ def homepage():
         cursor.execute(geography_query)
         geography_images = cursor.fetchall()
         
+        # 获取年代浏览的代表性图片（从有年代信息的文物中获取图片）
+        era_query = """
+            SELECT DISTINCT iv.Local_Path as local_path
+            FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE iv.Local_Path IS NOT NULL AND iv.Local_Path != '' 
+                AND a.Date_CN IS NOT NULL AND a.Date_CN != ''
+            ORDER BY RAND()
+            LIMIT 6
+        """
+        cursor.execute(era_query)
+        era_images = cursor.fetchall()
+        
         # 规范化图片路径
         for img in random_images:
             if img.get('local_path'):
@@ -408,13 +422,18 @@ def homepage():
             if img.get('local_path'):
                 img['local_path'] = normalize_image_path(img['local_path'])
         
+        for img in era_images:
+            if img.get('local_path'):
+                img['local_path'] = normalize_image_path(img['local_path'])
+        
         cursor.close()
         conn.close()
         
         return render_template('homepage.html', 
                              random_images=[img['local_path'] for img in random_images if img.get('local_path')],
                              culture_images=[img['local_path'] for img in culture_images if img.get('local_path')],
-                             geography_images=[img['local_path'] for img in geography_images if img.get('local_path')])
+                             geography_images=[img['local_path'] for img in geography_images if img.get('local_path')],
+                             era_images=[img['local_path'] for img in era_images if img.get('local_path')])
     except Error as e:
         if conn:
             conn.close()
@@ -422,7 +441,8 @@ def homepage():
         return render_template('homepage.html', 
                              random_images=[], 
                              culture_images=[],
-                             geography_images=[])
+                             geography_images=[],
+                             era_images=[])
 
 @app.route('/explore')
 @app.route('/random')
@@ -514,6 +534,13 @@ def detail(artifact_id):
             cursor.close()
             conn.close()
             abort(404)
+        
+        # 映射博物馆名称：将"open_in_new"替换为"故宫博物院"
+        museum_name_mapping = {
+            'open_in_new': '故宫博物院'
+        }
+        if artifact.get('dept_name') in museum_name_mapping:
+            artifact['dept_name'] = museum_name_mapping[artifact['dept_name']]
         
         # 查询该文物的所有图片
         images_query = """
@@ -1144,9 +1171,76 @@ def era_from_key(era_key_str):
 @app.route('/browse_eras')
 def browse_eras():
     """
-    年代浏览入口页：只显示“东方纪年 / 西方纪年”
+    年代浏览入口页：只显示"东方纪年 / 西方纪年"
     """
-    return render_template('browse_eras_entry.html')
+    conn = get_db_connection()
+    if conn is None:
+        return render_template('browse_eras_entry.html',
+                             east_images=[],
+                             west_images=[])
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # 获取东方纪年的代表性图片
+        east_query = """
+            SELECT DISTINCT iv.Local_Path as local_path
+            FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE iv.Local_Path IS NOT NULL AND iv.Local_Path != '' 
+                AND a.Date_CN IS NOT NULL AND a.Date_CN != ''
+                AND (
+                    a.Date_CN LIKE '%宋%' OR a.Date_CN LIKE '%明%' OR a.Date_CN LIKE '%清%'
+                    OR a.Date_CN LIKE '%漢%' OR a.Date_CN LIKE '%汉%' OR a.Date_CN LIKE '%唐%'
+                    OR a.Date_CN LIKE '%元%' OR a.Date_CN LIKE '%康熙%' OR a.Date_CN LIKE '%雍正%'
+                    OR a.Date_CN LIKE '%乾隆%' OR a.Date_CN LIKE '%嘉慶%' OR a.Date_CN LIKE '%道光%'
+                    OR a.Date_CN LIKE '%咸豐%' OR a.Date_CN LIKE '%同治%' OR a.Date_CN LIKE '%光緒%'
+                )
+            ORDER BY RAND()
+            LIMIT 6
+        """
+        cursor.execute(east_query)
+        east_images = cursor.fetchall()
+        
+        # 获取西方纪年的代表性图片
+        west_query = """
+            SELECT DISTINCT iv.Local_Path as local_path
+            FROM IMAGE_VERSIONS iv
+            INNER JOIN ARTIFACTS a ON iv.Artifact_PK = a.Artifact_PK
+            WHERE iv.Local_Path IS NOT NULL AND iv.Local_Path != '' 
+                AND a.Date_CN IS NOT NULL AND a.Date_CN != ''
+                AND (
+                    a.Date_CN LIKE '%世纪%' OR a.Date_CN LIKE '%世紀%' OR a.Date_CN LIKE '%BCE%'
+                    OR a.Date_CN LIKE '%BC%' OR a.Date_CN LIKE '%公元前%' OR a.Date_CN REGEXP '^[0-9]{3,4}$'
+                )
+            ORDER BY RAND()
+            LIMIT 6
+        """
+        cursor.execute(west_query)
+        west_images = cursor.fetchall()
+        
+        # 规范化图片路径
+        for img in east_images:
+            if img.get('local_path'):
+                img['local_path'] = normalize_image_path(img['local_path'])
+        
+        for img in west_images:
+            if img.get('local_path'):
+                img['local_path'] = normalize_image_path(img['local_path'])
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('browse_eras_entry.html',
+                             east_images=[img['local_path'] for img in east_images if img.get('local_path')],
+                             west_images=[img['local_path'] for img in west_images if img.get('local_path')])
+    except Error as e:
+        if conn:
+            conn.close()
+        # 即使查询失败，也显示页面
+        return render_template('browse_eras_entry.html',
+                             east_images=[],
+                             west_images=[])
 
 
 def _build_era_buckets():
@@ -2579,7 +2673,19 @@ def admin_dashboard():
             GROUP BY s.Source_ID
             ORDER BY count DESC
         """)
-        source_stats = cursor.fetchall()
+        source_stats_raw = cursor.fetchall()
+        
+        # 映射博物馆名称：将"open_in_new"替换为"故宫博物院"
+        source_stats = []
+        museum_name_mapping = {
+            'open_in_new': '故宫博物院'
+        }
+        for stat in source_stats_raw:
+            museum_name = stat['Museum_Name_CN']
+            # 如果名称在映射表中，使用映射后的名称
+            if museum_name in museum_name_mapping:
+                stat['Museum_Name_CN'] = museum_name_mapping[museum_name]
+            source_stats.append(stat)
         
         cursor.close()
         conn.close()
@@ -2763,6 +2869,12 @@ def import_artifacts_from_dataframe(df, import_mode='skip'):
                             return default
                     if key == 'Size_Value':
                         try:
+                            # 处理复合尺寸（如 "66 x 35.6 x 27.3"），提取第一个数值
+                            if val and isinstance(val, str):
+                                # 尝试提取第一个数字（可能包含小数点）
+                                match = re.search(r'(\d+\.?\d*)', str(val).strip())
+                                if match:
+                                    return float(match.group(1))
                             return float(val) if val is not None else default
                         except (ValueError, TypeError):
                             return default
@@ -2783,11 +2895,12 @@ def import_artifacts_from_dataframe(df, import_mode='skip'):
                 
                 # 调用存储过程（OUT参数用@变量接收）
                 # 参数顺序必须与存储过程定义完全一致
+                # 存储过程需要24个IN参数：1-23是数据字段，24是user_id，25是import_mode
                 cursor.execute("""
                     CALL sp_import_artifact_metadata(
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s,
+                        %s, %s,
                         @p_artifact_id, @p_result_status, @p_result_message
                     )
                 """, (

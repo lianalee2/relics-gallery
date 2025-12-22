@@ -227,6 +227,31 @@
         font-weight: bold;
         font-size: 0.9rem;
     }
+    
+    /* 数据来源统计项样式 */
+    .source-stat-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .source-stat-item:last-child {
+        border-bottom: none;
+    }
+    
+    .source-name {
+        font-size: 1rem;
+        color: var(--color-text);
+        font-weight: 500;
+    }
+    
+    .source-count {
+        font-size: 0.95rem;
+        color: #666;
+    }
+    
     /* 專門修復首頁表頭文字顏色 */
     .navbar .user-menu a, 
     .navbar .user-menu span,
@@ -346,7 +371,13 @@
             {% if source_stats %}
                 {% for source in source_stats %}
                 <div class="source-stat-item">
-                    <span class="source-name">{{ source.Museum_Name_CN }}</span>
+                    <span class="source-name">
+                        {% if source.Museum_Name_CN == 'open_in_new' %}
+                            故宫博物院
+                        {% else %}
+                            {{ source.Museum_Name_CN }}
+                        {% endif %}
+                    </span>
                     <span class="source-count">{{ source.count }} 件</span>
                 </div>
                 {% endfor %}

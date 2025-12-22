@@ -13,13 +13,39 @@
 
 <hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">
 
-<div class="catalog-grid">
-    <a href="{{ url_for('browse_eras_east') }}" class="card" style="padding:100px 40px; text-align:center;">
-        <div style="font-size: 1.6rem;">东方纪年</div>
+<div style="display: flex; flex-direction: column; gap: 30px; max-width: 800px; margin: 0 auto;">
+    <!-- 东方纪年 -->
+    <a href="{{ url_for('browse_eras_east') }}" class="explore-item">
+        <div class="explore-bg">
+            {% if east_images %}
+                {% for img_path in east_images[:6] %}
+                <div class="explore-bg-item" style="background-image: url('{{ url_for('static', filename=img_path) }}');"></div>
+                {% endfor %}
+            {% else %}
+                {% for i in range(6) %}
+                <div class="explore-bg-item" style="background-color: var(--color-lavender);"></div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <div class="explore-overlay"></div>
+        <div class="explore-text">东方纪年</div>
     </a>
 
-    <a href="{{ url_for('browse_eras_west') }}" class="card" style="padding:100px 40px; text-align:center;">
-        <div style="font-size: 1.6rem;">西方纪年</div>
+    <!-- 西方纪年 -->
+    <a href="{{ url_for('browse_eras_west') }}" class="explore-item">
+        <div class="explore-bg">
+            {% if west_images %}
+                {% for img_path in west_images[:6] %}
+                <div class="explore-bg-item" style="background-image: url('{{ url_for('static', filename=img_path) }}');"></div>
+                {% endfor %}
+            {% else %}
+                {% for i in range(6) %}
+                <div class="explore-bg-item" style="background-color: var(--color-lavender);"></div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <div class="explore-overlay"></div>
+        <div class="explore-text">西方纪年</div>
     </a>
 </div>
 {% endblock %}
